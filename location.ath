@@ -1,0 +1,27 @@
+
+domain Location
+
+module Location {
+	    
+declare alive: [Location] -> Boolean
+
+# We assume 'localhost' is always alive (otherwise, it would not be
+# possible to execute such 'alive' predicate.)  On the other hand,
+# other locations/nodes/hosts can fail at any time.  In practice, this
+# may be implemented with a ping protocol with a timeout, after which
+# no answer is regarded as a node 'failure' to respond. A challenge,
+# from a logical perspective, will be non-monotonic reasoning: a node
+# may be alive, then not alive, then alive again...  we need a
+# temporal logic to model such reasoning.
+
+declare localhost: Location
+assert aliveLocal := (alive localhost)
+
+#cvarela: to model unreachable host
+declare unreachableHost: Location
+assert (~ alive unreachableHost)
+
+} # close module Location
+
+open Location
+

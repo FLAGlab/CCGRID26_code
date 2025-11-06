@@ -1,0 +1,239 @@
+load "pair.ath"
+load "location.ath"
+
+structure (DPr S T) := (dpr lFirst:Location vFirst:S
+			    lSecond:Location vSecond:T)
+
+module DPr {
+	    
+assert dpr-st-axioms := (structure-axioms "DPr")
+assert dpr-se-axioms := (selector-axioms "DPr")
+
+define [dpr-no-junk] := dpr-st-axioms
+define [dpr-lFirst dpr-vFirst dpr-lSecond dpr-vSecond] := dpr-se-axioms
+
+define [f1 f2 s1 s2 lf1 lf2 ls1 ls2] :=
+       [?f1:'S ?f2:'S ?s1:'T ?s2:'T
+	?lf1:Location ?lf2:Location ?ls1:Location ?ls2:Location]
+
+assert dpr-equal := (forall lf1 f1 ls1 s1 lf2 f2 ls2 s2 .
+                       ((dpr lf1 f1 ls1 s1) = (dpr lf2 f2 ls2 s2) <==> 
+                        (f1 = f2) & (s1 = s2)))
+
+define [dp1 dp2] := [?dp1:(DPr 'S 'T) ?dp2:(DPr 'S 'T)]
+
+#cvarela: exercise to reader:
+# define dpr-eq-values :=
+#   (forall dp1 dp2 .
+#     dp1 = dp2 ==> ((vFirst dp1 = vFirst dp2) &
+#                    (vSecond dp1 = vSecond dp2))
+#
+# datatype-cases dpr-eq-values {
+#   (dp1 as (dpr lf1 f1 ls1 s1)) =>			      
+#     datatype-cases (forall dp2 . dp1 = dp2 ==>
+# 			           (vFirst dp1 = vFirst dp2) &
+# 				   (vSecond dp1 = vSecond dp2)) {
+#      (dp2 as (dpr lf2 f2 ls2 s2)) =>
+#        assume (dp1 = dp2)
+#          (!chain-> [     ((dpr lf1 f1 ls1 s1) = (dpr lf2 f2 ls2 s2))
+# 		     ==> ((f1 = f2) & (s1 = s2))  [dpr-equal]])}}
+# ...incomplete  
+
+define [f s lf ls] := [?f:'S ?s:'T ?lf:Location ?ls:Location]
+
+declare getFirst:  (S,T) [(DPr S T)] -> (Option S)
+declare getSecond: (S,T) [(DPr S T)] -> (Option T)
+
+assert first-axioms :=
+  (fun
+   [(getFirst (dpr lf f ls s)) =
+	      [(SOME f)        when (alive lf)
+	       NONE            when (~ alive lf)]])
+
+define [first-alive first-not-alive] := first-axioms
+
+assert second-axioms :=
+  (fun
+   [(getSecond (dpr lf f ls s)) =
+	      [(SOME s)        when (alive ls)
+	       NONE            when (~ alive ls)]])
+
+define [second-alive second-not-alive] := second-axioms
+
+define [dp] := [?dp:(DPr 'S 'T)]
+
+define correctness :=
+  (forall dp . dp = (dpr (lFirst dp) (vFirst dp) (lSecond dp) (vSecond dp)))
+
+datatype-cases correctness {
+  (dp as (dpr la a lb b)) =>
+     (!chain [   (dpr la a lb b)
+	       = (dpr (lFirst dp) (vFirst dp) (lSecond dp) (vSecond dp))
+		                                         [dpr-se-axioms] ])}
+			    
+# No failure equivalence proofs
+
+# Essentially, we want to prove that a distributed pair behaves like a
+# pair when there are no failures.
+
+# when is a pair equal to a distributed pair
+declare equal: (S,T) [(Pr S T) (DPr S T)] -> Boolean
+#cvarela: how to make the arguments interchangeable?
+
+assert* pr-dpr-equal-def := (((pr f1 s1) equal (dpr lf f2 ls s2)) <==>
+			     (f1 = f2 & s1 = s2))
+
+# when are a pair and a distributed pair behaviorally equivalent
+declare pr-equiv: (S,T) [(Pr S T) (DPr S T)] -> Boolean
+
+assert* pr-dpr-equiv-def := (p pr-equiv dp <==>
+			      ((getFirst  dp) = SOME (first  p) &
+			       (getSecond dp) = SOME (second p)))
+
+define no-local-failures :=
+  (forall f s . ((pr f s) pr-equiv (dpr localhost f localhost s)))
+
+conclude no-local-failures
+  pick-any f:'S s:'T
+    let {1st := (!chain<- [
+		       ((getFirst (dpr localhost f localhost s))
+			= (SOME (first (pr f s))))
+		   <== ((getFirst (dpr localhost f localhost s))
+			= (SOME f))                    [pr-first]
+		   <== (alive localhost)               [first-alive]]);
+	 2nd := (!chain<- [
+		       ((getSecond (dpr localhost f localhost s))
+			= (SOME (second (pr f s))))
+		   <== ((getSecond (dpr localhost f localhost s))
+			= (SOME s))                    [pr-second]
+		   <== (alive localhost)               [second-alive]])}
+    (!chain-> [     (1st & 2nd)
+		==> ((pr f s) pr-equiv (dpr localhost f localhost s))
+		                                       [pr-dpr-equiv-def]])
+
+# we lift 'alive' predicate to distributed pairs:
+declare alive-dpr: (S,T) [(DPr S T)] -> Boolean
+
+assert* alive-dpr-def :=
+  ((alive-dpr (dpr lf f ls s)) <==> (alive lf) & (alive ls))
+
+# an alive distributed pair is equivalent to its equal (non-distributed) pair.
+define pr-dpr-no-failures :=
+  (forall p dp . ((p equal dp) & (alive-dpr dp)) ==> (p pr-equiv dp))
+#cvarela: if and only if?
+
+datatype-cases pr-dpr-no-failures {
+(p as (pr f1:'S s1:'T)) =>
+  datatype-cases
+    (forall dp . ((p equal dp) & (alive-dpr dp)) ==> (p pr-equiv dp)) {
+  (dp as (dpr lf f2:'S ls s2:'T)) =>	 
+    assume ((p equal dp) & (alive-dpr dp))
+      let {
+	f1=f2&s1=s2 := (!chain<- [ ((f1 = f2) & (s1 = s2))
+			       <== (p equal dp)      [pr-dpr-equal-def]]);
+	1st := (!chain<- [
+	      ((getFirst (dpr lf f2 ls s2)) = (SOME (first (pr f1 s1))))
+	  <== ((getFirst (dpr lf f2 ls s2)) = (SOME f1))     [pr-first]
+	  <== ((getFirst (dpr lf f1 ls s1)) = (SOME f1))  [f1=f2&s1=s2]
+	  <== (alive lf)                                  [first-alive]
+	  <== (alive-dpr dp)                            [alive-dpr-def]]);
+	2nd := (!chain<- [
+	      ((getSecond (dpr lf f2 ls s2)) = (SOME (second (pr f1 s1))))
+	  <== ((getSecond (dpr lf f2 ls s2)) = (SOME s1))   [pr-second]
+	  <== ((getSecond (dpr lf f1 ls s1)) = (SOME s1)) [f1=f2&s1=s2]
+	  <== (alive ls)                                 [second-alive]
+	  <== (alive-dpr dp)                            [alive-dpr-def]])}
+      (!chain-> [ (1st & 2nd)
+	      ==> (p pr-equiv dp)                   [pr-dpr-equiv-def]])}}
+
+# equivalence between two distributed pairs
+# when are two distributed pairs behaviorally equivalent
+declare dpr-equiv: (S,T) [(DPr S T) (DPr S T)] -> Boolean
+
+define [dp1 dp2] := [?dp1:(DPr 'S 'T) ?dp2:(DPr 'S 'T)]
+
+assert* dpr-equiv-def := (dp1 dpr-equiv dp2 <==>
+			      ((getFirst  dp1) = (getFirst  dp2) &
+			       (getSecond dp1) = (getSecond dp2)))
+
+# two equal and alive distributed pairs are behaviorally equivalent
+define dpr-equiv-no-failures :=
+  (forall dp1 dp2 . (dp1 = dp2) & (alive-dpr dp1) & (alive-dpr dp2)
+                    ==> dp1 dpr-equiv dp2)
+
+datatype-cases dpr-equiv-no-failures {
+(dp1 as (dpr lf1 f1:'S ls1 s1:'T)) =>
+   datatype-cases
+     (forall dp2 . (dp1 = dp2) & (alive-dpr dp1) & (alive-dpr dp2)
+                   ==> dp1 dpr-equiv dp2) {
+   (dp2 as (dpr lf2 f2:'S ls2 s2:'T)) =>	 
+     assume ((dp1 = dp2) & (alive-dpr dp1) & (alive-dpr dp2))
+       let {
+	 f1=f2&s1=s2 := (!chain<- [ ((f1 = f2) & (s1 = s2))
+			       <==  (dp1 = dp2)        [dpr-equal]]);
+	 1st := (!combine-equations
+		  (!chain<-
+		    [  ((getFirst (dpr lf1 f1 ls1 s1))
+		        = (SOME f1)) 
+		       <== (alive lf1)                 [first-alive]
+		       <== (alive-dpr dp1)             [alive-dpr-def]])
+		  (!chain<-
+		    [  ((getFirst (dpr lf2 f2 ls2 s2))
+		        = (SOME f2))                            
+		         <== (alive lf2)               [first-alive]
+		         <== (alive-dpr dp2)           [alive-dpr-def]
+		       = (SOME f1)                     [f1=f2&s1=s2]]));
+	 2nd := (!combine-equations
+		  (!chain<-
+		    [  ((getSecond (dpr lf1 f1 ls1 s1))
+		        = (SOME s1)) 
+		       <== (alive ls1)                 [second-alive]
+		       <== (alive-dpr dp1)             [alive-dpr-def]])
+		  (!chain<-
+		    [  ((getSecond (dpr lf2 f2 ls2 s2))
+		        = (SOME s2))                            
+		         <== (alive ls2)               [second-alive]
+		         <== (alive-dpr dp2)           [alive-dpr-def]
+		       = (SOME s1)                     [f1=f2&s1=s2]]))}
+      (!chain-> [     (1st & 2nd)
+	  	  ==> (dp1 dpr-equiv dp2)              [dpr-equiv-def]])}}
+
+#cvarela: a non-conjecture:  "two equal distributed pairs are equivalent"
+#  does not hold if only one of the pair element locations fails
+
+define equal-equiv-conjecture :=
+  (forall dp1 dp2 . dp1 = dp2 ==> dp1 dpr-equiv dp2)
+
+# use model checking (falsify) to disprove property.
+
+(falsify equal-equiv-conjecture 10)
+
+# see FPMICS 3.13 to customize falsify to produce a counterexample such as:
+#
+# dp1 = (DPr localhost 0:Int localhost 0:Int)
+# dp2 = (Dpr unreachableHost 0:Int localhost 0:Int)
+#
+# it seems that Location (not being freely/inductively generated) does
+# not try constants localhost, unreachableHost:
+#
+# >define conj2 := (forall ?l:Location (alive ?l));;
+# Sentence conj2 defined.
+#
+# >(falsify conj2 10)
+# Term: 'failure
+#
+# >(eval alive localhost)
+# Term: true
+#
+# >(eval alive unreachableHost)
+# Term: false
+#
+# we could of course easily produce a deductive (negative) proof by
+# contradiction
+#
+
+} # close module DPr
+
+open DPr
+
+#_ := (print "\n1st:\n" 1st);

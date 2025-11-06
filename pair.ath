@@ -1,0 +1,31 @@
+datatype (Pr S T) := (pr first:S second:T)
+
+module Pr {
+	   
+assert pr-dt-axioms := (datatype-axioms "Pr")
+assert pr-se-axioms := (selector-axioms "Pr")
+
+define [pr-no-conf pr-no-junk] := pr-dt-axioms
+define [pr-first pr-second]    := pr-se-axioms
+
+define [a b] := [?a:'S ?b:'T]
+
+conclude correctness :=
+     (forall a b . (pr (first (pr a b)) (second (pr a b))) = (pr a b))
+pick-any a b
+  (!chain [   (pr (first (pr a b)) (second (pr a b)))
+	    = (pr a (second (pr a b)))                 [pr-first]
+	    = (pr a b)                                 [pr-second]])
+
+define p := ?p:(Pr 'S 'T)
+
+conclude correctness' :=
+     (forall p . (p = (pr (first p) (second p))))
+datatype-cases correctness' {
+  (p as (pr a b)) => (!chain [   (pr a b)
+			       = (pr (first p) b)           [pr-first]
+			       = (pr (first p) (second p))  [pr-second]])}
+
+} # close module Pr
+
+open Pr 

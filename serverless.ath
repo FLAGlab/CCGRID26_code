@@ -1,0 +1,63 @@
+load "dpair.ath"
+load "algebra/function.ath"
+
+
+module serverless {
+    open Function
+    ############################## Declarations
+    declare functionReplica: (D,R) [(fn D R) Location Location] 
+                                   -> (DPr (fn D R) (fn D R))
+    declare apply: (D,R) [(DPr (fn D R) (fn D R)) D] -> (Option R) 
+    declare alive: (D,R) [(DPr (fn D R) (fn D R))] -> Boolean
+
+    ############################## Definitions
+    define [f x l1 l2] := [?f:(fn 'D 'R) ?x:'D ?l1:Location ?l2:Location]
+
+    ############################## Asserts
+    assert* alive_axiom := 
+            (iff (alive (dpr l1 f l2 f)) ((Location.alive l1) or (Location.alive l2)))
+    assert* function_replica_axiom := 
+            ((functionReplica f l1 l2) = (dpr l1 f l2 f))
+    assert apply_axioms :=
+        (fun [
+            (apply (functionReplica f l1 l2) x) = 
+                [
+                    (SOME (f at x)) when (alive (functionReplica f l1 l2))
+                    NONE            when (~(alive (functionReplica f l1 l2)))
+                ]
+        ])
+    
+
+    ############################## Definitions 
+    define [first_apply second_apply] := apply_axioms
+    define fault_tolerance_correctness :=
+    (forall x f l1 l2 .
+        (if
+            ((Location.alive l1) or (Location.alive l2))
+            ((apply (functionReplica f l1 l2) x) = (SOME (f at x)))
+        )
+    )
+
+    ############################## Proofs 
+
+    conclude fault_tolerance_correctness
+        pick-any x:'D f:(fn 'D 'R) l1:Location l2:Location
+            assume _ := ((Location.alive l1) or (Location.alive l2))
+                let {
+                    alive_dpt := 
+                    (!chain<- [
+                        (alive (dpr l1 f l2 f))                   
+                        <== ((Location.alive l1) or (Location.alive l2))     [alive_axiom]
+                    ]);
+                    alive_functionReplica :=
+                    (!chain<- [
+                        (alive (functionReplica f l1 l2))
+                        <==
+                        (alive (dpr l1 f l2 f))                   [function_replica_axiom]
+                    ])
+                }
+                (!chain [
+                    (apply (functionReplica f l1 l2) x) 
+                    = (SOME (f at x))                        [first_apply]
+                ])
+}
