@@ -9,37 +9,64 @@ module serverless {
 
     declare functionReplica: (D,R) [(fn D R) Location Location] 
                                    -> (DPr (fn D R) (fn D R))
+
+    declare replicaComposition: (A, B, C) [(DPr (fn A B) (fn A B)) (DPr (fn B C) (fn B C))] 
+                                          -> (DPr (fn A C) (fn A C))
+
     declare apply: (D,R) [(DPr (fn D R) (fn D R)) D] -> (Option R) 
+
     declare alive: (D,R) [(DPr (fn D R) (fn D R))] -> Boolean
 
     ############################## Definitions
 
-    define [f x l1 l0] := [?f:(fn 'D 'R) ?x:'D ?l1:Location ?l0:Location]
+    define [f g x l1 l0 lg lg0 lg1 lf0 lf1] := 
+           [?f:(fn 'D 'R) ?g:(fn 'R 'O) ?x:'D ?l1:Location ?l0:Location
+            ?lg:Location ?lg0:Location ?lg1:Location ?lf0:Location ?lf1:Location]
+
+    define rComp := 
+            (replicaComposition (functionReplica f lf0 lf1) (functionReplica g lg0 lg1))
+            # g(f(x))
 
     ############################## Asserts
 
-    assert* alive_axiom := 
-            (iff (alive (dpr l1 f l0 f)) ((lAlive l1) or (lAlive l0)))
-    assert* function_replica_axiom := 
-            ((functionReplica f l1 l0) = (dpr l1 f l0 f))
+    assert* alive_axiom := (iff (alive (dpr l1 f l0 f)) ((lAlive l1) or (lAlive l0)))
+
+    assert* function_replica_axiom := ((functionReplica f l1 l0) = (dpr l1 f l0 f))
+
     assert apply_axioms :=
-        (fun [
-            (apply (functionReplica f l1 l0) x) = 
-                [
-                    (SOME (f at x)) when (alive (functionReplica f l1 l0))
-                    NONE            when (~(alive (functionReplica f l1 l0)))
-                ]
-        ])
+    (fun [
+        (apply (functionReplica f l1 l0) x) = 
+            [
+                (SOME (f at x)) when (alive (functionReplica f l1 l0))
+                NONE            when (~(alive (functionReplica f l1 l0)))
+            ]
+        (apply rComp x) =
+            [
+                (apply (functionReplica g lg0 lg1 ) (f at x))  when (alive (functionReplica f l1 l0))
+                NONE                         when (~(alive (functionReplica f l1 l0)))
+            ]
+
+    ])
     
 
     ############################## Definitions 
 
-    define [first_apply second_apply] := apply_axioms
     define fault_tolerance_correctness :=
     (forall x f l1 l0 .
         (if
             ((lAlive l1) or (lAlive l0))
             ((apply (functionReplica f l1 l0) x) = (SOME (f at x)))
+        )
+    )
+
+    define compose-definition := (forall f g x . (f o g) at x = f at (g at x))
+
+    define fault_tolerance_correctness_composition :=
+    (forall x f g lg0 lg1 lf0 lf1 .
+        (if
+            (((lAlive lf0) or (lAlive lf1)) and ((lAlive lg0) or (lAlive lg1)))
+            ((apply rComp x) = (SOME (g o f) at x))
+            # g(f(x))
         )
     )
 
@@ -64,6 +91,6 @@ module serverless {
                 }
                 (!chain [
                     (apply (functionReplica f l1 l0) x) 
-                    = (SOME (f at x))                                        [first_apply]
+                    = (SOME (f at x))                                        [apply_axioms]
                 ])
 }
