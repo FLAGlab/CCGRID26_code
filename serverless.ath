@@ -1,5 +1,6 @@
 load "dpair.ath"
 load "algebra/function.ath"
+define lAlive := Location.alive 
 
 
 module serverless {
@@ -18,7 +19,7 @@ module serverless {
     ############################## Asserts
 
     assert* alive_axiom := 
-            (iff (alive (dpr l1 f l0 f)) ((Location.alive l1) or (Location.alive l0)))
+            (iff (alive (dpr l1 f l0 f)) ((lAlive l1) or (lAlive l0)))
     assert* function_replica_axiom := 
             ((functionReplica f l1 l0) = (dpr l1 f l0 f))
     assert apply_axioms :=
@@ -37,7 +38,7 @@ module serverless {
     define fault_tolerance_correctness :=
     (forall x f l1 l0 .
         (if
-            ((Location.alive l1) or (Location.alive l0))
+            ((lAlive l1) or (lAlive l0))
             ((apply (functionReplica f l1 l0) x) = (SOME (f at x)))
         )
     )
@@ -47,12 +48,12 @@ module serverless {
 
     conclude fault_tolerance_correctness
         pick-any x:'D f:(fn 'D 'R) l1:Location l0:Location
-            assume _ := ((Location.alive l1) or (Location.alive l0))
+            assume _ := ((lAlive l1) or (lAlive l0))
                 let {
                     alive_dpt := 
                     (!chain<- [
                         (alive (dpr l1 f l0 f))                   
-                        <== ((Location.alive l1) or (Location.alive l0))     [alive_axiom]
+                        <== ((lAlive l1) or (lAlive l0))     [alive_axiom]
                     ]);
                     alive_functionReplica :=
                     (!chain<- [
