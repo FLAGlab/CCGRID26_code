@@ -1,10 +1,11 @@
 load "dpair.ath"
-load "algebra/function.ath"
+load "function.ath"
 define lAlive := Location.alive 
 
 
 module serverless {
     open Function
+    assert (theory-axioms Function.theory)
     ############################## Declarations
 
     declare functionReplica: (D,R) [(fn D R) Location Location] 
@@ -40,16 +41,20 @@ module serverless {
                 (SOME (f at x)) when (alive (functionReplica f l1 l0))
                 NONE            when (~(alive (functionReplica f l1 l0)))
             ]
-        (apply rComp x) =
-            [
-                (apply (functionReplica g lg0 lg1 ) (f at x))  when (alive (functionReplica f l1 l0))
-                NONE                         when (~(alive (functionReplica f l1 l0)))
-            ]
 
     ])
-    
 
-    ############################## Definitions 
+    assert apply_composition_axiom :=
+    (fun [
+        (apply rComp x) =
+            [
+                (apply (functionReplica g lg0 lg1 ) (f at x))  when (alive (functionReplica f lf0 lf1))
+                NONE                         when (~(alive (functionReplica f l1 l0)))
+            ]
+    ])
+
+
+    ############################## Theorem Definitions 
 
     define fault_tolerance_correctness :=
     (forall x f l1 l0 .
@@ -58,8 +63,6 @@ module serverless {
             ((apply (functionReplica f l1 l0) x) = (SOME (f at x)))
         )
     )
-
-    define compose-definition := (forall f g x . (f o g) at x = f at (g at x))
 
     define fault_tolerance_correctness_composition :=
     (forall x f g lg0 lg1 lf0 lf1 .
@@ -71,26 +74,49 @@ module serverless {
     )
 
 
-    ############################## Proofs 
+    ############################## Theorem Proofs 
 
     conclude fault_tolerance_correctness
         pick-any x:'D f:(fn 'D 'R) l1:Location l0:Location
-            assume _ := ((lAlive l1) or (lAlive l0))
+            assume((lAlive l1) or (lAlive l0))
                 let {
-                    alive_dpt := 
-                    (!chain<- [
-                        (alive (dpr l1 f l0 f))                   
-                        <== ((lAlive l1) or (lAlive l0))     [alive_axiom]
-                    ]);
-                    alive_functionReplica :=
-                    (!chain<- [
-                        (alive (functionReplica f l1 l0))
-                        <==
-                        (alive (dpr l1 f l0 f))                   [function_replica_axiom]
-                    ])
+                    _ := 
+                        (!chain<- [
+                            (alive (functionReplica f l1 l0))
+                            <== (alive (dpr l1 f l0 f))           [function_replica_axiom]
+                            <== ((lAlive l1) or (lAlive l0))                 [alive_axiom]
+                        ])
                 }
                 (!chain [
                     (apply (functionReplica f l1 l0) x) 
-                    = (SOME (f at x))                                        [apply_axioms]
+                    = (SOME (f at x))                                       [apply_axioms]
                 ])
+
+    conclude fault_tolerance_correctness_composition
+        pick-any x:'D f:(fn 'D 'R) g:(fn 'R 'O) lg0:Location lg1:Location lf0:Location lf1:Location
+            assume hyp := (((lAlive lf0) or (lAlive lf1)) and ((lAlive lg0) or (lAlive lg1)))
+                let {
+                    alive_functionReplica_f :=
+                        (!chain<- [
+                            (alive (functionReplica f lf0 lf1))
+                            <== (alive (dpr lf0 f lf1 f))         [function_replica_axiom]
+                            <== ((lAlive lf0) or (lAlive lf1))               [alive_axiom]
+                        ]);
+                    alive_functionReplica_g :=
+                        (!chain<- [
+                            (alive (functionReplica g lg0 lg1))
+                            <== (alive (dpr lg0 g lg1 g))         [function_replica_axiom]
+                            <== ((lAlive lg0) or (lAlive lg1))               [alive_axiom]
+                        ])
+                }
+                (!chain [
+                    (apply (replicaComposition (functionReplica f lf0 lf1) (functionReplica g lg0 lg1)) x)
+                    =
+                    (apply (functionReplica g lg0 lg1) (f at x))           [apply_composition_axiom]
+                    =
+                    (SOME (g at (f at x)))                                            [apply_axioms]
+                    =
+                    (SOME ((g o f) at x))                                       [compose-definition]
+                ])
+
 }

@@ -1,0 +1,11 @@
+load "algebra/function.ath"
+open Function
+
+assert compose-definition
+
+pick-any x:'D f:(fn 'D 'R) g:(fn 'R 'O) 
+    (!chain [
+        (g at (f at x))
+        =
+        ((g o f) at x)  [compose-definition]
+    ])
