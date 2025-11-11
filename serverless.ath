@@ -7,16 +7,15 @@ module serverless {
     open Function
     assert (theory-axioms Function.theory)
     ############################## Declarations
+    declare alive: (D,R) [(DPr (fn D R) (fn D R))] -> Boolean
+
+    declare apply: (D,R) [(DPr (fn D R) (fn D R)) D] -> (Option R) 
 
     declare functionReplica: (D,R) [(fn D R) Location Location] 
                                    -> (DPr (fn D R) (fn D R))
 
     declare replicaComposition: (A, B, C) [(DPr (fn A B) (fn A B)) (DPr (fn B C) (fn B C))] 
                                           -> (DPr (fn A C) (fn A C))
-
-    declare apply: (D,R) [(DPr (fn D R) (fn D R)) D] -> (Option R) 
-
-    declare alive: (D,R) [(DPr (fn D R) (fn D R))] -> Boolean
 
     ############################## Definitions
 
@@ -30,7 +29,12 @@ module serverless {
 
     ############################## Asserts
 
-    assert* alive_axiom := (iff (alive (dpr l1 f l0 f)) ((lAlive l1) or (lAlive l0)))
+    assert* alive_axiom := (iff (alive (dpr_ := 
+    (!chain<- [
+        (alive (functionReplica f l1 l0))
+        <== (alive (dpr l1 f l0 f))           [function_replica_axiom]
+        <== ((lAlive l1) or (lAlive l0))                 [alive_axiom]
+    ]) l1 f l0 f)) ((lAlive l1) or (lAlive l0)))
 
     assert* function_replica_axiom := ((functionReplica f l1 l0) = (dpr l1 f l0 f))
 
@@ -72,7 +76,6 @@ module serverless {
             # g(f(x))
         )
     )
-
 
     ############################## Theorem Proofs 
 

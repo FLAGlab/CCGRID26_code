@@ -1,0 +1,986 @@
+load "nat-plus"
+load "pair"
+load "algebra/function"
+load "lst-in"
+load "lst-toset"
+
+open Function
+
+# Hashtable inductive generation as a sequence of API calls:
+structure (HTable S) := (ht-empty  (Fun S N)) |
+                        (ht-insert (HTable S) S)
+
+# with element removal?!:
+# structure (HTable S) := (ht-empty (Fun S Boolean)) |
+#                         (ht-insert t:(HTable S) v:S) |
+#                         (ht-remove t:(HTable S) v:S)
+
+datatype (HTRep S) := (htr (Fun S N) (Pr (Lst S) (Lst S)))
+
+
+module HTable {
+
+	assert ht-st-axioms := (structure-axioms "HTable")
+		
+	define [ht-no-conf ht-no-junk] := ht-st-axioms
+
+	assert htr-dt-axioms := (datatype-axioms "HTRep")
+
+	define [htr-no-conf htr-no-junk] := htr-dt-axioms
+
+	define [f f']      := [?f:(Fun 'S N) ?f':(Fun 'S N)]
+	define [e o e' o'] := [?e:(Lst 'S) ?o:(Lst 'S) ?e':(Lst 'S) ?o':(Lst 'S)]
+
+	define htr-no-conf' :=
+	(forall f e o f' e' o' . ((htr f (pr e o)) = (htr f' (pr e' o')) <==>
+					((f = f') & (e = e') & (o = o'))))
+
+	conclude htr-no-conf'
+	pick-any f e o f' e' o'
+		(!chain [((htr f (pr e o)) = (htr f' (pr e' o')))
+		<==> ((f = f') & (pr e o) = (pr e' o'))        [htr-no-conf]
+		<==> ((f = f') & (e = e') & (o = o'))          [pr-no-conf]])
+
+
+	#---ht-rep
+
+	declare rep : (S) [(HTable S)] -> (HTRep S)	       
+
+	define [t v v'] := [?t:(HTable 'S) ?v:'S ?v':'S]
+
+	assert rep-axioms :=
+	(fun
+	[(rep (ht-empty f)) = (htr f (pr empty empty))
+		(rep (ht-insert t v)) =
+		[(htr f (pr (lst v e) o)) when
+			(((rep t) = (htr f (pr e o))) & (f at v = zero))
+		(htr f (pr e (lst v o))) when
+			(((rep t) = (htr f (pr e o))) & (~ f at v = zero))]])
+
+	define rep-e :=
+	(forall t . exists f e o . ((rep t) = (htr f (pr e o))))
+
+	by-induction rep-e {
+	(t as (ht-empty f')) =>				  
+	let{ rep-t := (!chain [(rep t) =
+				(htr f' (pr empty empty))         [rep-axioms]])}
+	(!egen* (exists f e o . ((rep t) = (htr f (pr e o)))) [f' empty empty])
+	| (t as (ht-insert t' v)) =>
+	let {ih := (exists f' e' o' . ((rep t') = (htr f' (pr e' o'))))}
+	pick-witnesses f' e' o' for ih rep-t'-def
+		(!two-cases
+		assume (f' at v = zero)
+			let{ rep-t := (!chain<- [((rep t) = (htr f' (pr (lst v e') o')))
+					<== (rep-t'-def & (f' at v = zero))
+												[rep-axioms]])}
+		(!egen* (exists f e o . ((rep t) = (htr f (pr e o))))
+			[f' (lst v e') o'])
+		assume (~ f' at v = zero)
+			let{ rep-t := (!chain<- [((rep t) = (htr f' (pr e' (lst v o'))))
+					<== (rep-t'-def & (~ f' at v = zero))
+												[rep-axioms]])}
+		(!egen* (exists f e o . ((rep t) = (htr f (pr e o))))
+			[f' e' (lst v o')]))}
+
+	by-induction rep-e {
+	(t as (ht-empty f')) =>				  
+	let{ rep-t := (!chain [(rep t) =
+				(htr f' (pr empty empty))         [rep-axioms]])}
+	(!egen* (exists f e o . ((rep t) = (htr f (pr e o)))) [f' empty empty])
+	| (t as (ht-insert t' v)) =>
+	let {ih := (exists f' e' o' . ((rep t') = (htr f' (pr e' o'))))}
+	pick-witnesses f' e' o' for ih rep-t'-def
+		let { m := (method (a el ol)
+		assume a
+			let{ rep-t := (!chain<- [((rep t) = (htr f' (pr el ol)))
+					<== (rep-t'-def & a)         [rep-axioms]])}
+		(!egen* (exists f e o . ((rep t) = (htr f (pr e o))))
+			[f' el ol]))}	     
+		(!two-cases
+		(!m (f' at v = zero)    (lst v e')  o')
+		(!m (~ f' at v = zero)  e'          (lst v o')))}
+
+	#---rep-inv
+
+	declare rep-inv : (S) [(HTRep S)] -> Boolean
+	
+	# (1) All even numbers are in first list.
+	# (2) All odd numbers are in second list.
+
+	assert rep-inv-def :=
+	(forall f e o .
+		((rep-inv (htr f (pr e o))) <==>
+		(forall v . ((v in e ==> (f at v = zero)) &
+				(v in o ==> (~ f at v = zero))))))
+
+	define rep-preserves-inv :=
+		(forall t . (rep-inv (rep t)))
+
+	# cvarela: following can be an exercise:
+	#invariant predicate procedure:
+	define (invp f e o) :=
+	(forall v . ((v in e ==> (f at v = zero)) &
+			(v in o ==> (~ f at v = zero))))
+
+	by-induction rep-preserves-inv{
+	(t as (ht-empty f)) =>				  
+	let{ fvt := pick-any v (!true-intro)}
+	(!chain<- [(rep-inv (rep t))
+		<== (rep-inv (htr f (pr empty empty)))           [rep-axioms]
+		<== (invp f empty empty)                         [rep-inv-def]  
+		<== (forall v . ((false ==> (f at v = zero)) &
+				(false ==> (~ f at v = zero)))) [Lst.In.empty-C]
+			<== fvt                                          [prop-taut]])
+	| (t as (ht-insert t' v')) =>
+	let {ih :=  (rep-inv (rep t'));
+		e-feo  := (!uspec rep-e t);
+		e-feo' := (!uspec rep-e t')}
+	pick-witnesses f' e' o' for e-feo' rep-t'
+											# (rep t') = (htr f' (pr e' o'))
+	pick-witnesses f e o for e-feo rep-t  # (rep t)  = (htr f (pr e o))
+	let {ih' := (!chain<- [((forall v . (v in e' ==> (f' at v = zero))) &
+				(forall v . (v in o' ==> (~ f' at v = zero))))
+				<== ((invp f' e' o') & (invp f' e' o')) [prop-taut]
+				<== (invp f' e' o')                     [prop-taut]
+				<== (rep-inv (htr f' (pr e' o')))       [rep-inv-def]
+				<== ih                                  [rep-t']]);
+		invp-feo := conclude (invp f e o)
+			pick-any v
+			(!two-cases
+				assume a := (f' at v' = zero)
+			let{rep-tt := (!chain<- [
+					(rep t = (htr f' (pr (lst v' e') o')))
+							<== (rep-t' & a)	          [rep-axioms]]);
+			t-t' := (!chain<- [
+						((f = f') & (e = (lst v' e')) & (o = o'))
+					<== (  (htr f (pr e o))
+						= (htr f' (pr (lst v' e') o')))
+												[htr-no-conf']
+					<== (rep t = rep t)        [rep-t rep-tt]])}
+				(!both
+					assume (v in e)
+				conclude (f at v = zero)
+					(!cases (!chain<- [ ((v = v') | (v in e'))
+						<==  (v in (lst v' e')) [Lst.In.in-lst-axiom]
+					<==  (v in e)           [t-t']])
+				assume (v = v')
+				(!chain<- [(f at v = zero)
+					<== (f' at v' = zero)  [(v = v') t-t']])
+					(!chain [(f at v = zero)
+				<== (f' at v = zero)       [t-t']
+				<== (v in e')              [ih']]))
+				(!chain [(~ f at v = zero)
+					<== (~ f' at v = zero)         [t-t']
+				<== (v in o')                  [ih']
+				<== (v in o)                   [t-t']]))
+				assume -a := (~ f' at v' = zero)
+			let{rep-tt := (!chain<- [
+					(rep t = (htr f' (pr e' (lst v' o'))))
+							<== (rep-t' & -a)	  [rep-axioms]]);
+			t-t' := (!chain<- [
+						((f = f') & (e = e') & (o = (lst v' o')))
+					<== (  (htr f (pr e o))
+						= (htr f' (pr e' (lst v' o'))))
+											[htr-no-conf']
+					<== (rep t = rep t)     [rep-t' rep-tt]])}
+				(!both
+					(!chain [(v in e)
+				==> (v in e')                  [t-t']
+				==> (f' at v = zero)           [ih']
+				==> (f at v = zero)            [t-t']])
+					assume (v in o)
+					conclude (~ f at v = zero)
+					(!cases (!chain<- [((v = v') | (v in o'))
+					<==  (v in (lst v' o')) [Lst.In.in-lst-axiom]
+					<==  (v in o)           [t-t']])
+					assume (v = v')
+					(!chain<- [(~ f at v = zero)
+								<== (~ f' at v' = zero) [(v = v') t-t']])
+					(!chain [(~ f at v = zero)
+					<== (~ f' at v = zero)     [t-t']
+				<== (v in o')              [ih']]))))}
+	(!chain<- [(rep-inv (rep t))
+		<== (rep-inv (htr f (pr e o)))              [rep-t]
+		<== invp-feo                                [rep-inv-def]])}
+
+		
+	# # cvarela: requires reasoning about "filter" and anonymous functions
+	# assert remove-axioms :=
+	#   (fun
+	#    [(remove (ht f (pr e o)) v) =
+	#             [(ht f (pr (filter (lambda (n) (~ n = v)) e) o))
+	# 	                                        when (f at v = zero)
+	# 	     (ht f (pr e (filter (lambda (n) (~ n = v)) o)))
+	# 						when (~ f at v = zero)]])
+
+
+	#---query
+
+	declare query : (S) [(HTable S) S] -> Boolean
+
+	assert query-axioms :=
+	(fun
+	[(query t v) =
+		[(v in e) when
+		(((rep t) = (htr f (pr e o))) & (f at v = zero))
+		(v in o) when
+		(((rep t) = (htr f (pr e o))) & (~ f at v = zero))]])
+
+	define query-fc-empty :=
+	(forall f v . ~ (query (ht-empty f) v))
+
+	conclude query-fc-empty
+	pick-any f v
+	let {t := (ht-empty f);
+		rep-t := (!chain [(rep t) =
+				(htr f (pr empty empty))         [rep-axioms]]);
+		m := (method (a)
+		(!chain [ a
+			==> (rep-t & a)                          [augment]
+			==> ((query t v) = (v in empty))         [query-axioms]
+			==> ((query t v) <==> (v in empty))      [eq2equiv]]));
+		q-t-v := (!two-cases
+			(!m (f at v = zero))
+			(!m (~ f at v = zero)))}
+	(!chain<- [  (~ (query t v))
+		<== (~ v in empty)                   [q-t-v]
+		<== true                             [Lst.In.in-empty-axiom]])
+
+	define query-empty-C :=
+	(forall f v . ((query (ht-empty f) v) <==> false))
+
+	conclude query-empty-C
+	pick-any f v
+		(!equiv
+		let {_ := (!chain<- [(~ query (ht-empty f) v) <==
+				true                        [query-fc-empty]])}
+		(!chain [(query (ht-empty f) v)
+			==> ((query (ht-empty f) v) & (~ query (ht-empty f) v))
+												[augment]
+			==> false                                 [prop-taut]])
+		assume false
+			(!from-false (query (ht-empty f) v)))
+
+	define [t' v1 v2] := [?t':(HTable 'S) ?v1:'S ?v2:'S]
+
+	define query-fc-insert :=
+	(forall t v1 v2 . ((query (ht-insert t v1) v2) <==>
+				((v2 = v1) | (query t v2))))
+
+	conclude query-fc-insert
+	pick-any t v1 v2
+	let {e-feo := (!uspec rep-e t)}
+	pick-witnesses f e o for e-feo rep-t     # (rep t) = (htr f (pr e o))
+		let {t' := (ht-insert t v1);
+			ehl := (method (rept t a l)
+				(!chain-> [ (rept & a)
+				==> ((query t v2) = (v2 in l))      [query-axioms]
+				==> ((query t v2) <==> (v2 in l))   [eq2equiv]]));
+			m := (method (a1 a2)
+		let {m1 := (method (e' o')
+			(!chain-> [ (rep-t & a1)
+				==> ((rep t') = (htr f (pr e' o')))  [rep-axioms]]));
+			rep-t' := try{ (!m1 (lst v1 e) o) |
+					(!m1 e (lst v1 o))}}
+			try { (!ehl rep-t' t' a2 (lst v1 e)) |
+			(!ehl rep-t' t' a2 e) |
+			(!ehl rep-t' t' a2 (lst v1 o)) |
+			(!ehl rep-t' t' a2 o) });
+			equiv-eq := (method (a1 a2 l)
+		let {q-t-v2  := (!ehl rep-t t a2 l);
+			q-t'-v2 := (!m a1 a2)}
+		(!chain [(query t' v2) 
+			<==> (v2 in (lst v1 l))                  [q-t'-v2]
+			<==> ((v2 = v1) | v2 in l)               [Lst.In.in-axioms]
+			<==> ((v2 = v1) | (query t v2))          [q-t-v2]]));
+			equiv-neq := (method (a1 a2 l)
+		let {q-t-v2  := (!ehl rep-t t a2 l);
+			q-t'-v2 := (!m a1 a2);
+			-v1=v2  := assume (v2 = v1)
+			let { a1v2 := ((make-sub [[v1 v2]]) a1);
+				-a2 :=  (!chain<- [a1v2 <== a1  [(v2 = v1)]])}
+			(!absurd a2 -a2)}
+		(!chain [(query t' v2)
+			<==> (v2 in l)                           [q-t'-v2]
+			<==> (false | (v2 in l))                 [prop-taut]
+			<==> ((v2 = v1) | (v2 in l))             [prop-taut -v1=v2]
+			<==> ((v2 = v1) | (query t v2))          [q-t-v2]]))}
+		(!two-cases
+		assume a1 := (f at v1 = zero)
+			(!two-cases
+		assume a2 := (f at v2 = zero)   (!equiv-eq  a1 a2 e)
+		assume a2 := (~ f at v2 = zero) (!equiv-neq a1 a2 o))
+		assume a1 := (~ f at v1 = zero)
+			(!two-cases
+		assume a2 := (f at v2 = zero)   (!equiv-neq a1 a2 e)
+		assume a2 := (~ f at v2 = zero) (!equiv-eq  a1 a2 o)))
+
+	define query-fc-insert-c1 :=
+	(forall t v . (query (ht-insert t v) v))
+
+	conclude query-fc-insert-c1
+	pick-any t v
+	(!chain<- [    (query (ht-insert t v) v)
+			<== (v = v | (query t v))         [query-fc-insert]
+			<== (v = v)                       [prop-taut]])
+
+	# query's functional correctness
+	define query-fc :=
+	(forall t v .
+		(exists f . (t = (ht-empty f) & (~ query t v))) |
+		(exists t' v' . (t = (ht-insert t' v') &
+				((query t v) <==> ((v = v') | (query t' v))))))
+
+	structure-cases query-fc {
+	(t as (ht-empty f')) =>
+	pick-any v
+		let {_ := (!chain<- [(t = (ht-empty f') & (~ query t v))
+					<== (~ query t v)                 [augment]
+					<== true                          [query-fc-empty]])}
+		(!either
+		(!egen (exists f . (t = (ht-empty f) & (~ query t v))) f')
+		(exists t' v' . (t = (ht-insert t' v') &
+				((query t v) <==> ((v = v') | (query t' v))))))
+	| (t as (ht-insert t0 v0)) =>
+	pick-any v
+		let {eqtv := (!chain [(query t v) <==> (v = v0 | (query t0 v))
+											[query-fc-insert]]);
+			_ := (!chain<- [(t = (ht-insert t0 v0) &
+				((query t v) <==> ((v = v0) | (query t0 v))))
+				<== eqtv                              [augment]])}
+		(!either
+		(exists f . (t = (ht-empty f) & (~ query t v)))
+		(!egen* (exists t' v' . (t = (ht-insert t' v') &
+				((query t v) <==> ((v = v') | (query t' v))))) [t0 v0]))}
+
+		
+	#---values
+
+	declare values : (S) [(HTable S)] -> (Set.Set S)
+
+	define \/ := Set.\/
+	define [union-def union-commutes] := [Set.union-def Set.union-commutes]
+	define [set-identity-intro-direct in-disjoint] :=
+		[Set.set-identity-intro-direct Set.in-disjoint]
+	define [toSet-axioms toSet-fc] := [Lst.toSet.toSet-axioms
+									Lst.toSet.toSet-fc]
+
+	assert values-axiom :=
+	(fun
+		[(values t) =
+		[((l2s e) \/ (l2s o)) when ((rep t) = (htr f (pr e o)))]])
+
+
+	define values-fc-empty :=
+	(forall f . (values (ht-empty f) = Set.null))
+
+	conclude values-fc-empty
+	pick-any f
+	let {t := (ht-empty f)}
+	(!chain<- [((values t) = Set.null)
+			<== ((values t) = (Set.null \/ Set.null))         [union-def]
+		<== ((values t) = ((l2s empty) \/ (l2s empty)))   [toSet-axioms]
+		<== ((rep t) = (htr f (pr empty empty)))          [values-axiom]
+		<== true                                          [rep-axioms]])
+
+	define values-fc-insert :=
+	(forall t v . values (ht-insert t v) = Set.insert v (values t))
+
+	conclude values-fc-insert
+	pick-any t0 v0
+	let {t := (ht-insert t0 v0);
+		e-feo := (!uspec rep-e t);
+		e-feo0 := (!uspec rep-e t0)}
+	pick-witnesses f e o for e-feo rep-t      # (rep t) = (htr f (pr e o))
+	pick-witnesses f0 e0 o0 for e-feo0 rep-t0
+											# (rep t0) = (htr f0 (pr e0 o0))
+	let {m := (method (a el ol)
+			let {rep-tt := (!chain<- [((rep t) = (htr f0 (pr el ol)))
+							<== (rep-t0 & a)      [rep-axioms]])}
+			(!chain<- [(f = f0 & e = el & o = ol)
+				<== ((htr f (pr e o)) = (htr f0 (pr el ol)))
+														[htr-no-conf']
+				<== ((rep t) = (rep t))  [rep-t rep-tt]]));
+		vt0 := (!chain [((values t0) = (l2s e0) \/ (l2s o0))
+			<== rep-t0                           [values-axiom]])}
+	(!two-cases
+		assume a := (f0 at v0 = zero)
+		# (rep t)  = (htr f0 (pr (lst v0 e0) o0))
+		let {t-t' := conclude (f = f0 & e = (lst v0 e0) & o = o0)
+				(!m a (lst v0 e0) o0)}
+		(!chain-> [rep-t
+			==> ((values t)
+			= ((l2s e) \/ (l2s o)))                  [values-axiom]
+			= ((l2s (lst v0 e0)) \/ (l2s o0))        [t-t']
+			= ((Set.insert v0 (l2s e0)) \/ (l2s o0)) [toSet-axioms]
+			= (Set.insert v0 ((l2s e0) \/ (l2s o0))) [union-def]
+			= (Set.insert v0 (values t0))            [vt0]])
+		assume -a := (~ f0 at v0 = zero)
+		# (rep t)  = (htr f0 (pr e0 (lst v0 o0)))
+		let {t-t' := conclude (f = f0 & e = e0 & o = (lst v0 o0))
+				(!m -a e0 (lst v0 o0))}
+		(!chain-> [rep-t
+			==> ((values t)
+				= ((l2s e) \/ (l2s o)))                  [values-axiom]
+			= ((l2s e0) \/ (l2s (lst v0 o0)))        [t-t']
+			= ((l2s e0) \/ (Set.insert v0 (l2s o0))) [toSet-axioms]
+			= ((Set.insert v0 (l2s o0)) \/ (l2s e0)) [union-commutes]
+			= (Set.insert v0 ((l2s o0) \/ (l2s e0))) [union-def]
+			= (Set.insert v0 ((l2s e0) \/ (l2s o0))) [union-commutes]
+			= (Set.insert v0 (values t0))            [vt0]]))
+
+	# values' functional correctness
+	define values-fc :=
+	(forall t .
+		(exists f . (t = (ht-empty f) & (values t) = Set.null)) |
+		(exists t' v' . (t = (ht-insert t' v') &
+				((values t) = (Set.insert v' (values t'))))))
+
+	structure-cases values-fc {
+	(t as (ht-empty f')) =>
+	let{_ :=
+		(!chain<- [(t = (ht-empty f') & (values t) = Set.null)
+			<== (t = (ht-empty f') & (values t) = (values t))
+												[values-fc-empty]])}
+	(!either
+		(!egen (exists f . (t = (ht-empty f) & (values t) = Set.null)) f')
+		(exists t' v' . (t = (ht-insert t' v') &
+				((values t) = (Set.insert v' (values t'))))))
+	| (t as (ht-insert t0 v0)) =>
+	let {_ := (!chain<- [(t = (ht-insert t0 v0) &
+					((values t) = (Set.insert v0 (values t0))))
+			<== (t = (ht-insert t0 v0) &
+					((values t) = (values t)))  [values-fc-insert]])}
+	(!either
+		(exists f . (t = (ht-empty f) & (values t) = Set.null))
+		(!egen* (exists t' v' . (t = (ht-insert t' v') &
+				((values t) = (Set.insert v' (values t'))))) [t0 v0]))}
+
+	# cvarela: following as exercise?
+	# theorem relating query and values
+	define query-values :=
+	(forall t v .
+		(query t v) <==> (v in values t))
+
+	conclude query-values
+	pick-any t v
+	let {e-feo := (!uspec rep-e t)}
+	pick-witnesses f e o for e-feo rep-t     # (rep t) = (htr f (pr e o))
+		let{m := (method (a e)
+			assume a
+				(!chain-> [(rep-t & a)
+			==> ((query t v) = (v in e))       [query-axioms]
+			==> ((query t v) <==> (v in e))    [eq2equiv]]));
+			even := (!m (f at v = zero) e);
+			odd  := (!m (~ f at v = zero) o);
+			qtv-> := (!chain<- [((query t v) ==> (v in e | v in o))
+				<== (((query t v) <==> (v in e)) |
+					((query t v) <==> (v in o)))      [prop-taut]
+						#  (p <==> q) | (p <==> r)  ==>  (p ==> (q | r))
+				<== ((f at v = zero) | (~ f at v = zero))
+													[even odd]
+				<== true                           [prop-taut]]);
+			qtv<- := assume vin := ((v in e) | (v in o))
+					let{rep-inv-t := (!fire rep-preserves-inv [t]);
+				_ := (!chain<- [(rep-inv (htr f (pr e o)))
+					<== rep-inv-t  [rep-t]]);
+						inv-t     := (!fire rep-inv-def [f e o]);
+				inv-te    := (!left-and  (!uspec inv-t v));
+				inv-to    := (!right-and (!uspec inv-t v))}
+					(!cases vin
+						assume (v in e)
+				let {even := (!chain<- [(f at v = zero)
+						<== (v in e)       [inv-te]]);
+						eveq := (!chain<- [((query t v) <==> (v in e))
+						<== ((query t v) = (v in e)) [eq2equiv]
+					<== (rep-t & even)  [query-axioms]])}
+						(!chain<- [(query t v)
+					<== (v in e)  [eveq]])
+						assume (v in o)
+				let {odd := (!chain<- [(~ f at v = zero)
+						<== (v in o)       [inv-to]]);
+						odeq := (!chain<- [((query t v) <==> (v in o))
+						<== ((query t v) = (v in o)) [eq2equiv]
+					<== (rep-t & odd)  [query-axioms]])}
+						(!chain<- [(query t v)
+					<== (v in o)  [odeq]]));
+			qtv-eq := (!equiv qtv-> qtv<-)}
+		(!chain [(query t v) 
+			<==> (v in e | v in o)                     [qtv-eq] 
+		<==> (v in (l2s e) | v in (l2s o))         [toSet-fc]
+		<==> (v in (l2s e) \/ (l2s o))             [Set.UC]
+		<==> (v in (values t))
+							[(values t = (l2s e) \/ (l2s o))
+						<== rep-t                 [values-axiom]]])
+
+
+	#---ht-hf
+
+	declare hf : (S) [(HTable S)] -> (Fun S N)
+
+	define [t] := [?t:(HTable 'S)]
+	define [f] := [?f:(Fun 'S N)]
+	define [e o v] := [?e:(Lst 'S) ?o:(Lst 'S) ?v:'S]
+
+	assert hf-axioms :=
+	(fun
+	[(hf (ht-empty f))    = f
+		(hf (ht-insert t v)) = (hf t)])
+
+	#cvarela: hf's functional correctness (exercise?!)
+
+	define hf-fc-empty :=
+	(forall f . (hf (ht-empty f)) = f)
+
+	conclude hf-fc-empty
+	pick-any f
+	(!chain [(hf (ht-empty f)) = f                           [hf-axioms]])
+
+	define hf-fc-insert :=
+	(forall t v . (hf (ht-insert t v)) = (hf t))
+
+	conclude hf-fc-insert
+	pick-any t v
+	(!chain [(hf (ht-insert t v)) = (hf t)                   [hf-axioms]])
+
+
+	define hf-fc :=
+	(forall t . ((exists f . (t = (ht-empty f) & (hf t) = f)) |
+			exists t' v . (t = (ht-insert t' v) & (hf t) = (hf t'))))
+
+	structure-cases hf-fc{
+	(t as (ht-empty f')) =>
+	let {_ := (!chain<- [(t = (ht-empty f') & (hf t) = f')
+			<== (t = (ht-empty f') & (hf t) = (hf t))  [hf-fc-empty]])}
+	(!either
+		(!egen (exists f . (t = (ht-empty f) & (hf t) = f)) f')
+		(exists t' v . (t = (ht-insert t' v) & (hf t) = (hf t'))))
+	| (t as (ht-insert t0 v0)) =>
+	let {_ := (!chain<- [(t = (ht-insert t0 v0) & (hf t) = (hf t0))
+			<== (t = (ht-insert t0 v0) & (hf t) = (hf t))
+													[hf-fc-insert]])}
+	(!either
+		(exists f . (t = (ht-empty f) & (hf t) = f))
+		(!egen* (exists t' v . (t = (ht-insert t' v) & (hf t) = (hf t')))
+			[t0 v0]))}
+
+
+	define hf-lemma :=
+	(forall t v f' e' o' .
+		((rep (ht-insert t v) = (htr f' (pr e' o'))) ==>
+		exists e o . (rep t) = (htr f' (pr e o))))
+
+	conclude hf-lemma
+	pick-any t v f' e' o'
+	let {t' := (ht-insert t v)}
+	assume (rep t' = (htr f' (pr e' o')))
+		let {e-feo := (!uspec rep-e t)}
+		pick-witnesses f e0 o0 for e-feo rep-t
+											# (rep t) = (htr f (pr e0 o0))
+			let{m := (method (a el ol)
+			assume a
+			let {rep-t' := (!chain-> [
+				(rep-t & a)
+			==> ((rep t') = (htr f (pr el ol)))  [rep-axioms]]);
+			h=h' := (!combine-equations (!sym rep-t')
+				(!sym (rep t' = (htr f' (pr e' o')))));
+			f=f' := (!chain [(f = f')
+					<== h=h'              [htr-no-conf]]);
+			rep-tf := (!chain [(rep t)
+					= (htr f (pr e0 o0))  [rep-t]
+					= (htr f' (pr e0 o0)) [f=f']])} 
+				(!egen* (exists e o . (rep t) = (htr f' (pr e o))) [e0 o0]))}
+			(!two-cases
+			(!m (f at v = zero)    (lst v e0) o0)
+			(!m (~ f at v = zero)  e0         (lst v o0)))
+
+
+	define hf-sel :=
+	(forall t f e o .
+		((rep t) = (htr f (pr e o)) ==> (hf t) = f))
+
+	by-induction hf-sel {
+	(t as (ht-empty f')) =>
+	pick-any f e o
+		assume ((rep t) = (htr f (pr e o)))
+		let{rep-t := (!chain [(rep t)
+				= (htr f' (pr empty empty))      [rep-axioms]]);
+			h=h' := (!combine-equations (!sym ((rep t) = (htr f (pr e o))))
+						(!sym rep-t));
+			f'=f := (!chain<- [(f' = f)
+				<== (f = f')                     [sym]
+				<== ((htr f (pr e o)) = (htr f' (pr empty empty)))
+												[htr-no-conf]])}
+		(!chain [(hf t) = f'                               [hf-axioms]
+					= f                                [f'=f]])
+	| (t as (ht-insert t' v)) =>
+	let {ih :=
+		(forall f e o . ((rep t') = (htr f (pr e o)) ==> (hf t') = f))}
+	pick-any f e o
+		assume ((rep t) = (htr f (pr e o)))
+		let {e-eo := (!chain<- [
+				(exists e' o' . (rep t') = (htr f (pr e' o')))
+				<== ((rep t) = (htr f (pr e o)))       [hf-lemma]])}
+		pick-witnesses e' o' for e-eo rep-t' # (rep t') = (htr f (pr e' o'))
+			let {hft'=f := (!chain-> [rep-t'
+					==> ((hf t') = f)              [ih]])}
+			(!chain [(hf t)
+			= (hf t')                                     [hf-axioms]
+			= f                                           [hft'=f]])}
+
+
+	# ht's fc corollary:
+	define ht-fc :=
+	(forall t v .
+		(exists f .     (t = (ht-empty f)) &
+				(~ query t v) &
+				(values t = Set.null) &
+				(hf t = f)) |
+		(exists t' v' . (t = (ht-insert t' v') &
+				((query t v) <==> ((v = v') | (query t' v))) &
+				(values t = (Set.insert v' (values t'))) &
+				(hf t = hf t'))))
+
+	structure-cases ht-fc{
+	(t as (ht-empty f')) =>
+	pick-any v
+		let {_ := (!instance query-fc-empty [f' v]);
+		_ := (!instance values-fc-empty [f']);
+		_ := (!instance hf-fc-empty [f']);
+		_ := (!chain<- [((t = (ht-empty f')) &
+				(~ query t v) &
+				(values t = Set.null) &
+				(hf t = f'))
+				<== true                             [augment]])}
+		(!either
+		(!egen (exists f .     (t = (ht-empty f)) &
+						(~ query t v) &
+					(values t = Set.null) &
+					(hf t = f)) f')
+		(exists t' v' . (t = (ht-insert t' v') &
+				((query t v) <==> ((v = v') | (query t' v))) &
+				(values t = (Set.insert v' (values t'))) &
+				(hf t = hf t'))))
+	| (t as (ht-insert t0 v0)) =>
+	pick-any v
+		let {_ := (!instance query-fc-insert [t0 v0 v]);
+		_ := (!instance values-fc-insert [t0 v0]);
+		_ := (!instance hf-fc-insert [t0 v0]);
+		_ := (!chain<- [(t = (ht-insert t0 v0) &
+				((query t v) <==> ((v = v0) | (query t0 v))) &
+				(values t = (Set.insert v0 (values t0))) &
+				(hf t = hf t0))
+				<== true                             [augment]])}
+		(!either
+		(exists f .     (t = (ht-empty f)) &
+					(~ query t v) &
+				(values t = Set.null) &
+				(hf t = f))
+		(!egen* (exists t' v' . (t = (ht-insert t' v') &
+				((query t v) <==> ((v = v') | (query t' v))) &
+				(values t = (Set.insert v' (values t'))) &
+				(hf t = hf t')))
+			[t0 v0]))}
+
+
+
+	#---equal
+	#
+	# When are two hashtables equal?
+
+	assert* ht-equal-axiom := (t = t' <==> ((hf t) = (hf t') &
+						(values t) = (values t')))
+
+	define ht-equal-hf :=
+	(forall t t' . (t = t' ==> (hf t) = (hf t')))
+
+	conclude ht-equal-hf
+	pick-any t t'
+		(!chain [(t = t') ==> ((hf t) = (hf t'))  [ht-equal-axiom]])
+
+	define ht-equal-values :=
+	(forall t t' . (t = t' ==> (values t) = (values t')))
+
+	conclude ht-equal-values
+	pick-any t t'
+		(!chain [(t = t') ==> ((values t) = (values t'))  [ht-equal-axiom]])
+
+	# cvarela: an example of when an equality axiom introduces an
+	# inconsistency in the assumption base:
+
+	define ht-equal-wrong-axiom := (forall t t' . (t = t'))
+
+	define inconsistent-ab :=
+	(ht-equal-wrong-axiom ==> false)
+
+	conclude inconsistent-ab
+	assume ht-equal-wrong-axiom
+		let { ht1 := (ht-empty f);
+			ht2 := (ht-insert ht1 zero)}
+		(!absurd (!instance ht-no-conf [f ht1 zero])
+				(!instance ht-equal-wrong-axiom [ht1 ht2]))
+
+	# cvarela: another example of incorrect equality axiom:  NOT!
+
+	# define ht-equal-wrong-axiom' := (t = t' <==> (values t) = (values t'))
+
+	# ht1 has even as hf; ht2 has odd as hf.  Both have only one value:
+	# zero.  ht1 = ht2, but (query ht1 zero) and (query ht2
+	# zero)... actually would be equivalent, since query would use each
+	# ht's hf consistently... you would have to query with a hf different
+	# than the one used for value insertion: something impossible with our
+	# representation that includes a hf.
+
+
+	#---ht-equiv
+	#
+	# When are two hashtables equivalent?
+
+
+	declare ht-equiv: (S) [(HTable S) (HTable S)] ->  Boolean
+
+	#cvarela: cannot use "equiv" since it is a primitive method to
+	#generate biconditionals
+
+	assert* ht-equiv-def :=
+	(t ht-equiv t' <==> forall v . (query t v) <==> (query t' v))
+
+
+
+
+	# cvarela: should be in general Athena 1st order logic library:
+	define (hsyl premise-1 premise-2) :=
+	match [premise-1 premise-2] {
+	[(if (some-sentence p1) (some-sentence p2))
+	(if (some-sentence p2) (some-sentence p3))] =>
+	assume p1
+		conclude p3
+		(!mp premise-2
+			(p2 by (!mp premise-1 p1)))
+	}
+
+	define [v A1 A2 B1 B2] := [?v:'S ?A1:(Set.Set 'S) ?A2:(Set.Set 'S)
+									?B1:(Set.Set 'S) ?B2:(Set.Set 'S)]
+
+	# cvarela: A more general Set theorem to use, but it would require 2nd
+	# order logic:
+	# define dsets-p :=
+	#   (forall A1 A2 B1 B2 p .
+	#       ((A1 \/ B1 = A2 \/ B2) &
+	#        (forall v . ((v in A1 ==> (p v)) & (v in B1 ==> (~ p v)))) & 
+	#        (forall v . ((v in A2 ==> (p v)) & (v in B2 ==> (~ p v))))) ==>
+	#       (A1 = A2 & B1 = B2))
+
+	define (even-p f v) := (f at v = zero)
+
+	define (partition-equality p) :=
+	(forall A1 A2 B1 B2 .
+		((A1 \/ B1 = A2 \/ B2) &
+		(forall v . ((v in A1 ==> p) & (v in B1 ==> (~ p)))) & 
+		(forall v . ((v in A2 ==> p) & (v in B2 ==> (~ p))))) ==>
+		(A1 = A2 & B1 = B2))
+
+	define dsets-even := (forall f . (partition-equality (even-p f v)))
+
+	conclude dsets-even
+	pick-any f A1 A2 B1 B2
+	let {p := (even-p f v);
+		ab1=ab2 := (A1 \/ B1 = A2 \/ B2);
+		ab1p := (forall v . ((v in A1 ==> p) & (v in B1 ==> (~ p))));
+		ab2p := (forall v . ((v in A2 ==> p) & (v in B2 ==> (~ p))))}
+	assume (ab1=ab2 & ab1p & ab2p)
+		let {ba1=ba2 := (!chain<- [(B1 \/ A1 = B2 \/ A2)
+					<== (A1 \/ B1 = A2 \/ B2)   [union-commutes]]);
+			ab12p := (!chain<- [((forall v . (v in A1 ==> p)) &
+					(forall v . (v in A2 ==> p)) &
+					(forall v . (v in B1 ==> ~ p)) &
+					(forall v . (v in B2 ==> ~ p)))
+				<== (ab1p & ab2p & ab1p & ab2p)    [prop-taut]]);
+			m1 := (method (v A1 A2 p)
+					assume ((v in A1) | (v in A2))
+					(!cases ((v in A1) | (v in A2))
+						(!chain [p <== (v in A1)               [ab12p]])
+				(!chain [p <== (v in A2)               [ab12p]])));
+			m2 := (method (v B1 B2 p)
+					assume p
+					(!both
+						(!chain-> [p ==> (~ v in B1)           [ab12p]])
+						(!chain-> [p ==> (~ v in B2)           [ab12p]])));
+			abpc  := conclude (forall v . ((v in A1 | v in A2) ==> p))
+						pick-any v (!m1 v A1 A2 (even-p f v));	 
+			abpc' := conclude (forall v . (p ==> (~ v in B1 & ~ v in B2)))
+						pick-any v (!m2 v B1 B2 (even-p f v));
+			bapc  := conclude (forall v . ((v in B1 | v in B2) ==> ~ p))
+						pick-any v (!m1 v B1 B2 (~ even-p f v));	 
+			bapc' := conclude (forall v . ~ p ==> (~ v in A1 & ~ v in A2))
+						pick-any v (!m2 v A1 A2 (~ even-p f v));
+			m := (method (v A1 A2 B1 B2 -v-in-B)
+				(!chain [(v in A1)
+				==> ((v in A1) & (v in A1))         [prop-taut]
+				==> ((v in A1) & (~ v in B2))       [-v-in-B]
+				==> ((v in A1 \/ B1) & (~ v in B2)) [Set.UC]
+				==> ((v in A2 \/ B2) & (~ v in B2)) [ab1=ab2 ba1=ba2]
+				==> (v in A2)                       [in-disjoint]]));
+			m' := (method (v A1 A2 B1 B2 p abpc abpc')
+				let {-v-in-B := (!chain [
+					((v in A1) | (v in A2))
+					==> p                            [abpc]
+					==> ((~ v in B1 ) & (~ v in B2)) [abpc']])}
+					(!equiv
+				conclude (v in A1 ==> v in A2)
+					(!m v A1 A2 B1 B2 -v-in-B)
+				conclude (v in A2 ==> v in A1)
+				(!m v A2 A1 B2 B1 -v-in-B)))}
+		(!both
+		(!set-identity-intro-direct
+		pick-any v
+		conclude (v in A1 <==> v in A2)
+				(!m' v A1 A2 B1 B2 (even-p f v) abpc abpc'))
+		(!set-identity-intro-direct
+		pick-any v
+		conclude (v in B1 <==> v in B2)
+				(!m' v B1 B2 A1 A2 (~ even-p f v) bapc bapc')))
+
+
+	define ht-eq2equiv :=   # proof without using substitution/congruence
+				# needs rep-inv preservation theorem
+	(forall t t' . (t = t' ==> t ht-equiv t'))
+
+	conclude ht-eq2equiv
+	pick-any t:(HTable 'S) t'
+	let {e-feo  := (!uspec rep-e t);
+		e-feo' := (!uspec rep-e t')}
+	pick-witnesses f e o    for e-feo  rep-t   # (rep t) = (htr f (pr e o))
+	pick-witnesses f' e' o' for e-feo' rep-t'
+											# (rep t') = (htr f' (pr e' o'))
+	assume (t = t')
+		let {qtv<->qt'v :=
+		pick-any v
+		let {hft  := (!chain<- [((hf t) = f)   <== rep-t   [hf-sel]]);
+			hft' := (!chain<- [((hf t') = f') <== rep-t'  [hf-sel]]);
+			f=f' := (!chain<- [(f = f')
+				<== ((hf t) = (hf t'))         [hft hft']
+				<== (t = t')                   [ht-equal-hf]]);
+			vt  := (!chain<- [((values t)  = ((l2s e) \/ (l2s o)))
+				<== rep-t                       [values-axiom]]);
+			vt' := (!chain<- [((values t') = ((l2s e') \/ (l2s o')))
+				<== rep-t'                      [values-axiom]]);
+		vt=vt' := (!chain<- [
+						(((l2s e) \/ (l2s o)) = ((l2s e') \/ (l2s o')))
+					<== ((values t) = (values t'))    [vt vt']
+				<== (t = t')                   [ht-equal-values]]);
+		e-o  := (!chain<- [
+				(forall v . ((v in (l2s e) ==> (f at v = zero)) &
+					(v in (l2s o) ==> (~ f at v = zero))))
+				<== (invp f e o)                    [toSet-fc]
+				<== (rep-inv (htr f (pr e o)))      [rep-inv-def]
+				<== (rep-inv (rep t))               [rep-t]
+				<== true                       [rep-preserves-inv]]);
+		e-o' := (!chain<- [
+				(forall v . ((v in (l2s e') ==> (f at v = zero)) &
+					(v in (l2s o') ==> (~ f at v = zero))))
+				<== (invp f  e' o')                 [toSet-fc]
+						<== (invp f' e' o')                 [f=f']
+					<== (rep-inv (htr f' (pr e' o')))   [rep-inv-def]
+				<== (rep-inv (rep t'))              [rep-t']
+				<== true                       [rep-preserves-inv]]);
+		e=e'&o=o' := conclude ((l2s e) = (l2s e') & (l2s o) = (l2s o'))
+						(!chain<- [
+					((l2s e) = (l2s e') & (l2s o) = (l2s o'))
+				<== (vt=vt' & e-o & e-o')      [dsets-even]]);
+		ve<->ve' := conclude ((v in e) <==> (v in e'))
+					(!chain [(v in e)
+					<==> (v in (l2s e))           [toSet-fc]
+				<==> (v in (l2s e'))          [e=e'&o=o']
+				<==> (v in e')                [toSet-fc]]);
+		vo<->vo' := conclude ((v in o) <==> (v in o'))
+					(!chain [(v in o)
+				<==> (v in (l2s o))           [toSet-fc]
+				<==> (v in (l2s o'))          [e=e'&o=o']
+				<==> (v in o')                [toSet-fc]]);
+		m := (method (a t rept l)
+			assume a
+						(!chain<- [((query t v) <==> (v in l))
+						<== ((query t v) = (v in l))  [eq2equiv]
+				<== (rept & a)               [query-axioms]]));
+		a := (f at v = zero);
+		qtv-ve :=
+			conclude ((f at v = zero) ==> (query t v) <==> (v in e))
+			(!m a t rep-t e);
+		qtv-vo := 
+			conclude ((~ f at v = zero) ==> (query t v) <==> (v in o))
+			(!m (~ a) t rep-t o);
+		a' := (f' at v = zero);
+		a->a' := (!chain [a ==> a' [f=f']]);
+		qt'v-ve'0 := (!m a' t' rep-t' e');
+		qt'v-ve' := 
+			conclude ((f at v = zero) ==> (query t' v) <==> (v in e'))
+			(!hsyl a->a' qt'v-ve'0);
+		-a->-a' := (!chain [(~ a) ==> (~ a') [f=f']]);
+		qt'v-vo'0 := (!m (~ a') t' rep-t' o');
+		qt'v-vo' :=
+			conclude ((~ f at v = zero) ==> (query t' v) <==> (v in o'))
+			(!hsyl -a->-a' qt'v-vo'0);
+		m' := (method (a l l')
+			assume a
+				(!chain [(query t v)
+				<==> (v in l)             [qtv-ve qtv-vo]
+				<==> (v in l')            [ve<->ve' vo<->vo']
+				<==> (query t' v)         [qt'v-ve' qt'v-vo']]))}
+		(!two-cases
+			(!m' a e e')
+		(!m' (~ a) o o'))}
+		(!chain<- [(t ht-equiv t') <== qtv<->qt'v            [ht-equiv-def]])
+
+
+	# cvarela:
+	# it is good that the following does not work, but why doesn't it?
+	# (when are equal terms not substitutable?)
+	# actually, it works  (by just annotating proper sorts)
+	# semantics of equal must guarantee substitutability...
+
+	# *If* query were incorrect, then assumption base (with
+	# ht-equal-axiom) would become inconsistent: true <==> false.  That
+	# is, ht-equal-axiom would be inconsistent with other axioms... the
+	# proof that does not use equals for substitutability above, ensures
+	# that (ab) does not become inconsistent... and so it is needed...  as
+	# an example, imagine an insert function that puts elements in random
+	# buckets... then, ht1 = ht2 does not imply (query ht1 1) <==> (query
+	# ht2 1).
+
+	# An easier way to reach an inconsistent assumption base would be to
+	# imagine an "ht-equal-axiom" that makes any two hashing functions
+	# identical.  Then, clearly the following theorem would work, but true
+	# <==> false would be in the assumption base.
+
+	# Another good example is two hashtables are equal if values are
+	# equal.  Then, two hashtables with different hashing functions (even
+	# and odd) would be "equal" but would produce an inconsistent ab,
+	# since (query ht1 zero) <==> (query ht2 zero) would be (true <==>
+	# false).  NOT REALLY:  each "query" would use each ht's hf consistently.
+
+	conclude ht-eq2equiv
+	pick-any t:(HTable 'S) t':(HTable 'S)
+	assume (t = t')
+		let {qtv-qt'v :=
+		pick-any v
+			let {qtv=qt'v := (!chain [(query t v)
+						= (query t' v) [(t = t')]])}
+			(!chain-> [qtv=qt'v
+				==> ((query t v) <==> (query t' v)) [eq2equiv]])}
+		(!chain<- [(t ht-equiv t') <== qtv-qt'v [ht-equiv-def]])
+
+} # close module HTable
+
+open HTable
+
+#_ := (print "\nf'=f:\n" f'=f)
+
+# induction template for hash tables:
+# by-induction ... {
+# (t as (ht-empty f)) =>				  
+#   let{ rep-t := (!chain [(rep t) =
+# 			 (htr f (pr empty empty))         [rep-axioms]]);
+# | (t as (ht-insert t' v)) =>
+#   let {ih :=  (...t'...)}
+# }
