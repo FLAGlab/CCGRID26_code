@@ -1,0 +1,70 @@
+
+# Properties of list to set transformation function "l2s".
+
+load "lst-in"
+load "set-util"
+load "bool"
+
+extend-module Lst {
+			    	   
+declare l2s: (S) [(Lst S)] -> (Set.Set S)
+
+overload in Set.in
+	
+module toSet{
+	   
+define [v h t] := [?v:'S ?h:'S ?t:(Lst 'S)]
+
+assert toSet-axioms :=
+  (fun
+    [(l2s empty) = Set.null
+     (l2s (lst h t)) = (Set.insert h (l2s t))])
+       
+define [toSet-empty-axiom toSet-lst-axiom] := toSet-axioms
+
+define [l] := [?l:(Lst 'S)]
+
+# functional correctness
+define toSet-fc :=
+  (forall l v . (v in l <==> v in (l2s l)))
+
+by-induction toSet-fc {
+(l as empty) =>
+  pick-any v
+    (!chain [(v in l)
+	<==> false                                [Lst.In.empty-C]
+	<==> (v in Set.null)                      [Set.NC]
+	<==> (v in (l2s l))                       [toSet-empty-axiom]])
+| (l as (lst h t)) =>
+  let {ih := (forall v . (v in t <==> v in (l2s t)))}
+  pick-any v
+    (!chain [(v in l)
+	<==> ((v = h) | v in t)                   [Lst.In.in-lst-axiom]
+	<==> ((v = h) | v in (l2s t))             [ih]
+	<==> (v in (Set.insert h (l2s t)))        [Set.in-def]
+	<==> (v in (l2s l))                       [toSet-lst-axiom]])
+}
+
+define [l1 l2] := [?l1:(Lst 'S) ?l2:(Lst 'S)]
+
+define in-equal :=
+  (forall l1 l2 v .
+    ((l2s l1) = (l2s l2)) ==> (v in l1) = (v in l2))
+
+conclude in-equal
+pick-any l1:(Lst 'S) l2:(Lst 'S) v
+  assume a := ((l2s l1) = (l2s l2))
+    let {equiv := (!chain [(v in l1)
+		      <==> (v in (l2s l1))         [toSet-fc]
+		      <==> (v in (l2s l2))         [a]
+		      <==> (v in l2)               [toSet-fc]])}
+    (!chain<- [((v in l1) = (v in l2))
+	   <== ((v in l1) <==> (v in l2))          [equiv2eq]])
+
+} # close module Lst.toSet
+
+} # close module Lst
+
+#_ := (print "\nrl:\n" rl)
+open Lst
+

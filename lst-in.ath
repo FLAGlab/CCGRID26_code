@@ -1,0 +1,137 @@
+
+# Properties of in membership predicate on lists
+
+load "list"
+
+extend-module Lst {
+
+declare in: (S) [S (Lst S)] -> Boolean
+		  
+module In{
+	   
+define [v h t] := [?v:'S ?h:'S ?t:(Lst 'S)]
+
+assert* in-empty-axiom := (~ v in empty) 
+assert* in-lst-axiom := ((v in (lst h t)) <==>
+			 (v = h) | (v in t)) 
+
+define in-axioms := [in-empty-axiom in-lst-axiom]
+
+# #cvarela: need predicate version of "fun"       
+# assert in-axioms :=
+#   (fun
+#     [(in v empty) = empty
+#      (in v (lst h t)) = (h = v) or (in v t)])
+
+#define [in-empty-axiom in-lst-axiom] := in-axioms
+
+define [l] := [?l:(Lst 'S)]
+
+# cvarela: equivalent definition?!
+# define functional-correctness :=
+#   (forall l v . 
+#     ((isEmpty l & ~ v in l) |
+#      ((head l = v & v in l) |
+#       (v in tail l <==> v in l)))) 
+
+define functional-correctness :=
+  (forall l v . (v in l <==>
+		 (v = head l) | (v in tail l)))
+
+define empty-C :=
+  (forall v . (v in empty <==> false))
+
+conclude empty-C
+  pick-any v
+    let {_ := (!chain<- [(~ v in empty) <== true   [in-empty-axiom]])}
+    (!chain [(v in empty)
+	<==> ((v in empty) & (~ v in empty))       [augment]
+	<==> false                                 [prop-taut]])
+
+define in-tail-exists :=
+  (forall l v . (v in tail l ==> exists t . tail l = t))
+
+conclude in-tail-exists
+pick-any l v
+  (!chain [(v in tail l)
+       ==> (v in tail l & tail l = tail l)                [augment]
+       ==> (exists t . (v in tail l & tail l = t))        [existence]
+       ==> (exists t . tail l = t)                        [prop-taut]])
+
+define -in-tail-empty :=
+  (forall v . (~ v in tail empty))
+
+conclude -in-tail-empty
+pick-any v
+  (!by-contradiction (~ v in tail empty)
+  let{ -tet := (!chain<- [ (~ exists t . tail empty = t)
+		       <== (forall t . ~ tail empty = t) [qn]
+		       <== (empty = empty)               [empty-notail]])}
+  (!chain [(v in tail empty:(Lst 'S))
+       ==> (exists ?t:(Lst 'S) . tail empty = ?t)        [in-tail-exists]
+       ==> ((exists ?t . tail empty = ?t) & -tet)        [augment]
+       ==> false                                         [prop-taut]]))
+     
+datatype-cases functional-correctness {
+(l as empty) =>
+  pick-any v
+  let{ -vhl := (!chain<- [(~ v = head l)
+		      <== (~ head l = v)               [sym]
+		      <== true                         [empty-head]]);
+       -vtl := (!chain<- [ (~ v in tail l) <== true  [-in-tail-empty]])}
+  (!chain [(v in l)
+      <==> false                                             [empty-C]
+      <==> (((v = head l) & -vhl) | (v in tail l) & -vtl)    [prop-taut]
+      <==> ((v = head l) | (v in tail l))                    [augment]])
+| (l as (lst h t)) =>				       
+  pick-any v
+    (!chain [(v in l)
+	<==> ((v = h) | (v in t))                      [in-lst-axiom]
+	<==> ((v = head l) | (v in tail l))            [lst-se-axioms]])}
+
+
+define [v1 v2] := [?v1:'S ?v2:'S]
+
+define in-singleton :=
+  (forall v1 v2 . (v2 in (lst v1 empty) <==> (v2 = v1)))
+
+conclude in-singleton
+  pick-any v1 v2
+    (!chain [(v2 in (lst v1 empty))
+	<==> ((v2 = v1) | (v2 in empty))           [in-lst-axiom]
+	<==> ((v2 = v1) | false)                   [empty-C]
+	<==> (v2 = v1)                             [prop-taut]])
+
+
+} # close module Lst.In
+
+} # close module Lst
+
+#_ := (print "\nrl:\n" rl)
+open Lst
+
+#cvarela:  why are sort annotations needed here?
+
+# conclude in-tail-nempty-c1
+# pick-any v
+#   (!by-contradiction (~ v in tail empty)
+#   let{ -tlt := (!chain<- [ (~ exists t . tail empty = t)
+# 		       <== (forall t . ~ tail empty = t) [qn]
+# 		       <== (empty = empty)               [empty-notail]])}
+#   (!chain [(v in tail empty:(Lst 'S))
+# #
+# # Users/varela/Documents/Book2/code/athena/lst-in.ath:70:3: Error: Implicational chaining error
+# # on the 1st step of the chain, in going from:
+# # (Lst.in ?v_897:'T14397
+# #         (tail empty:(Lst 'T14397)))
+# # to:
+# # (exists ?t:(Lst 'T14386)
+# #   (= (tail empty:(Lst 'T14386))
+# #      ?t:(Lst 'T14386)))
+# #
+# #  (!chain [(v in tail empty)
+#        # ==> (exists t . tail empty = t)                 [in-tail-nempty]
+#        # ==> ((exists t . tail empty = t) & -tlt)        [augment]
+#        ==> (exists ?t:(Lst 'S) . tail empty = ?t)        [in-tail-nempty]
+#        ==> ((exists ?t . tail empty = ?t) & -tlt)        [augment]
+#        ==> false                                         [prop-taut]]))
