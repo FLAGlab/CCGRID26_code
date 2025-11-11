@@ -3,7 +3,7 @@ load "function.ath"
 define lAlive := Location.alive 
 
 
-module serverless {
+module DFunction {
     open Function
     assert (theory-axioms Function.theory)
     ############################## Declarations
