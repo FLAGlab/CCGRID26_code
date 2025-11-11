@@ -1,0 +1,35 @@
+#
+#cvarela: unable to load without a functioning SPASS/other theorem prover
+#         to-do: create a light version of "sets" w/o ATP use.
+#load "sets"
+load "sets-notp"  #forces all prior uses of SPASS
+
+extend-module Set {
+
+# cvarela:  should be in Set
+define [v A B] := [?v:'S ?A:(Set 'S) ?B:(Set 'S)]
+
+define in-disjointA :=
+  (forall v A B . ((v in A \/ B & ~ v in B) ==> (v in A)))
+
+conclude in-disjointA
+  pick-any v A B
+    (!chain [(v in A \/ B & ~ v in B)
+         ==> ((v in A | v in B) & ~ v in B)  [UC]
+         ==> (v in A)                        [prop-taut]])
+
+define in-disjointB :=
+  (forall v A B . ((v in B \/ A & ~ v in B) ==> (v in A)))
+
+conclude in-disjointB
+  pick-any v A B
+    (!chain [(v in B \/ A & ~ v in B)
+         ==> ((v in B | v in A) & ~ v in B)  [UC]
+         ==> (v in A)                        [prop-taut]])
+
+define in-disjoint := (in-disjointA & in-disjointB)
+
+conclude in-disjoint
+  (!both in-disjointA in-disjointB)
+
+} # close module Set
