@@ -8,6 +8,8 @@ structure (DHTable S) := (dht-empty  (Pr Location Location) (Fun S N)) |
 # Hashtable representation using lists
 datatype (DHTRep S) := (dhtr (Fun S N) (DPr (Lst S) (Lst S)))
 
+datatype (DHT S) := (dht (Fun S N) (Lst (DPr S)))
+
 module DHTable {
 			
 	assert dht-st-axioms := (structure-axioms "DHTable")
