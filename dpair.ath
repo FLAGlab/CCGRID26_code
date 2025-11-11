@@ -22,23 +22,6 @@ assert dpr-equal := (forall lf1 f1 ls1 s1 lf2 f2 ls2 s2 .
 
 define [dp1 dp2] := [?dp1:(DPr 'S 'T) ?dp2:(DPr 'S 'T)]
 
-#cvarela: exercise to reader:
-# define dpr-eq-values :=
-#   (forall dp1 dp2 .
-#     dp1 = dp2 ==> ((vFirst dp1 = vFirst dp2) &
-#                    (vSecond dp1 = vSecond dp2))
-#
-# datatype-cases dpr-eq-values {
-#   (dp1 as (dpr lf1 f1 ls1 s1)) =>			      
-#     datatype-cases (forall dp2 . dp1 = dp2 ==>
-# 			           (vFirst dp1 = vFirst dp2) &
-# 				   (vSecond dp1 = vSecond dp2)) {
-#      (dp2 as (dpr lf2 f2 ls2 s2)) =>
-#        assume (dp1 = dp2)
-#          (!chain-> [     ((dpr lf1 f1 ls1 s1) = (dpr lf2 f2 ls2 s2))
-# 		     ==> ((f1 = f2) & (s1 = s2))  [dpr-equal]])}}
-# ...incomplete  
-
 define [f s lf ls] := [?f:'S ?s:'T ?lf:Location ?ls:Location]
 
 declare getFirst:  (S,T) [(DPr S T)] -> (Option S)
@@ -198,39 +181,8 @@ datatype-cases dpr-equiv-no-failures {
       (!chain-> [     (1st & 2nd)
 	  	  ==> (dp1 dpr-equiv dp2)              [dpr-equiv-def]])}}
 
-#cvarela: a non-conjecture:  "two equal distributed pairs are equivalent"
-#  does not hold if only one of the pair element locations fails
-
 define equal-equiv-conjecture :=
   (forall dp1 dp2 . dp1 = dp2 ==> dp1 dpr-equiv dp2)
-
-# use model checking (falsify) to disprove property.
-
-(falsify equal-equiv-conjecture 10)
-
-# see FPMICS 3.13 to customize falsify to produce a counterexample such as:
-#
-# dp1 = (DPr localhost 0:Int localhost 0:Int)
-# dp2 = (Dpr unreachableHost 0:Int localhost 0:Int)
-#
-# it seems that Location (not being freely/inductively generated) does
-# not try constants localhost, unreachableHost:
-#
-# >define conj2 := (forall ?l:Location (alive ?l));;
-# Sentence conj2 defined.
-#
-# >(falsify conj2 10)
-# Term: 'failure
-#
-# >(eval alive localhost)
-# Term: true
-#
-# >(eval alive unreachableHost)
-# Term: false
-#
-# we could of course easily produce a deductive (negative) proof by
-# contradiction
-#
 
 } # close module DPr
 
