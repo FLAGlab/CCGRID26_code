@@ -29,12 +29,7 @@ module DFunction {
 
     ############################## Asserts
 
-    assert* alive_axiom := (iff (alive (dpr_ := 
-    (!chain<- [
-        (alive (functionReplica f l1 l0))
-        <== (alive (dpr l1 f l0 f))           [function_replica_axiom]
-        <== ((lAlive l1) or (lAlive l0))                 [alive_axiom]
-    ]) l1 f l0 f)) ((lAlive l1) or (lAlive l0)))
+    assert* alive_axiom := (iff (alive (dpr l1 f l0 f)) ((lAlive l1) or (lAlive l0)))
 
     assert* function_replica_axiom := ((functionReplica f l1 l0) = (dpr l1 f l0 f))
 
