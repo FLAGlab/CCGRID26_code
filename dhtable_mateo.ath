@@ -25,6 +25,7 @@ assert  initDPrList_axioms :=  (fun [
 	])
 
 declare insertDPrList: (S) [N S (Lst (DPr (Lst S) (Lst S)))] -> (Lst (DPr (Lst S) (Lst S)))
+# WHE ASSUME THAT ALWAYS : N < len (Lst ...)
 assert  insertDPrList_axioms := (fun [
 		(insertDPrList zero v (lst (dpr l0 ls0 l1 ls1) tail_LDPRL)) =
 			(lst (dpr l0 (lst v ls0) l1 (lst v ls1)) tail_LDPRL)
