@@ -1,0 +1,64 @@
+load "htable.ath"
+load "dpair.ath"
+
+structure (DHTable S) := (dht-empty  (Lst (Pr Location Location)) (fn S N)) |
+                         (dht-insert (DHTable S) S)
+
+datatype (DHTRep S) := (dhtr (fn S N) (Lst (DPr (Lst S) (Lst S))))
+
+# ge := general element
+define [l0 l1 ls0 ls1 tail_LPRL tail_LDPRL ge v n dprl] := 
+	   [?l0:Location ?l1:Location ?ls0:(Lst 'S) ?ls1:(Lst 'S) 
+	    ?tail_LPRL:(Lst (Pr Location Location)) ?tail_LDPRL:(Lst (DPr (Lst 'S) (Lst 'S)))
+		?ge:'S ?v:'S ?n:N ?dprl:(DPr (Lst 'S) (Lst 'S))]
+
+declare initDPrList: (S) [S (Lst (Pr Location Location))] -> (Lst (DPr (Lst S) (Lst S)))
+assert  initDPrList_axioms :=  (fun [ 
+		(initDPrList ge (lst (pr l0 l1) tail_LPRL)) =
+			[
+				(lst (dpr l0 empty l1 empty) (initDPrList ge tail_LPRL))
+					when (~(tail_LPRL = empty))
+				(lst (dpr l0 empty l1 empty) empty)
+					when (tail_LPRL = empty)
+			]
+		(initDPrList ge empty)  = empty
+	])
+
+declare insertDPrList: (S) [N S (Lst (DPr (Lst S) (Lst S)))] -> (Lst (DPr (Lst S) (Lst S)))
+assert  insertDPrList_axioms := (fun [
+		(insertDPrList zero v (lst (dpr l0 ls0 l1 ls1) tail_LDPRL)) =
+			(lst (dpr l0 (lst v ls0) l1 (lst v ls1)) tail_LDPRL)
+
+		(insertDPrList (S n) v (lst dprl tail_LDPRL)) =
+			(lst dprl (insertDPrList n v tail_LDPRL))
+	])
+
+module DHTable {
+	assert dht-st-axioms := (structure-axioms "DHTable")
+	define [dht-no-conf dht-no-junk] := dht-st-axioms
+	define [f f' n]        := [?f:(fn 'S N) ?f':(fn 'S N) ?n:N]
+	# ldpl := list distributed pair list
+	define [ldpl ldpl0 ldpl1] := [?ldpl:(Lst (DPr (Lst 'S) (Lst 'S)))  ?ldpl0:(Lst (DPr (Lst 'S) (Lst 'S))) ?ldpl1:(Lst (DPr (Lst 'S) (Lst 'S)))]
+	# lpl := list pair location 
+	define [lpl0 lpl]   := [?lpl0:(Lst (Pr Location Location)) ?lpl:(Lst (Pr Location Location))]   
+
+	assert* dhtr-no-conf :=
+	(iff
+		((dhtr f ldpl0) = (dhtr f' ldpl1))
+		((f = f') & (ldpl0 = ldpl1))
+	)
+
+	declare rep : (S) [(DHTable S)] -> (DHTRep S)	       
+
+	# overload rep HTable.rep
+
+	define [dt v v'] := [?dt:(DHTable 'S) ?v:'S ?v':'S]
+
+	assert rep-axioms :=
+	(fun [
+		(rep (dht-empty lpl f)) = (dhtr f (initDPrList ge lpl))
+		(rep (dht-insert dt v)) = [(dhtr f (insertDPrList n v ldpl))
+					when ((rep dt) = (dhtr f ldpl) & (f at v = n))]
+	])
+
+}
