@@ -1,65 +1,67 @@
 load "htable.ath"
 load "dpair.ath"
+load "dlist.ath"
+# ll := Location List; hf := hash function; rv := replicate value; htl := hash table location
+structure (DHTable S) := (dht_empty  ll:(Lst Location) hf:(fn S N) rv:N htl:Location) |
+                         (dht_insert (DHTable S) S)
 
-structure (DHTable S) := (dht-empty  (Lst (Pr Location Location)) (fn S N)) |
-                         (dht-insert (DHTable S) S)
+datatype (DHTRep S) := (dhtr hf:(fn S N) rv:N htl:Location (DLst (Lst S)))
 
-datatype (DHTRep S) := (dhtr (fn S N) (Lst (DPr (Lst S) (Lst S))))
+define [s tail_s lsts l lh htl0 tail_l f  tail_DLLS n] := 
+	   [?s:'S ?tail_s:(Lst 'S) ?lsts:(Lst 'S) ?l:Location ?lh:Location ?htl0:Location 
+	    ?tail_l:(Lst Location) ?f:(fn 'S N) ?tail_DLLS:(DLst (Lst 'S)) ?n:N]
 
-# ge := general element
-define [l0 l1 ls0 ls1 tail_LPRL tail_LDPRL ge v n dprl] := 
-	   [?l0:Location ?l1:Location ?ls0:(Lst 'S) ?ls1:(Lst 'S) 
-	    ?tail_LPRL:(Lst (Pr Location Location)) ?tail_LDPRL:(Lst (DPr (Lst 'S) (Lst 'S)))
-		?ge:'S ?v:'S ?n:N ?dprl:(DPr (Lst 'S) (Lst 'S))]
-
-declare initDPrList: (S) [S (Lst (Pr Location Location))] -> (Lst (DPr (Lst S) (Lst S)))
+declare initDPrList: (S) [(fn S N) Location (Lst Location)] -> (DLst (Lst S))
 assert  initDPrList_axioms :=  (fun [ 
-		(initDPrList ge (lst (pr l0 l1) tail_LPRL)) =
+		(initDPrList f htl0 (lst l tail_l))  =
 			[
-				(lst (dpr l0 empty l1 empty) (initDPrList ge tail_LPRL))
-					when (~(tail_LPRL = empty))
-				(lst (dpr l0 empty l1 empty) empty)
-					when (tail_LPRL = empty)
+				(dlst l empty (initDPrList f htl0 tail_l))
+					when (~(tail_l = empty))
+				(dlst l empty (dempty htl0))
+					when (tail_l = empty)
 			]
-		(initDPrList ge empty)  = empty
+		(initDPrList f htl0 empty)  = (dempty htl0) 
 	])
 
-declare insertDPrList: (S) [N S (Lst (DPr (Lst S) (Lst S)))] -> (Lst (DPr (Lst S) (Lst S)))
-# WHE ASSUME THAT ALWAYS : N < len (Lst ...)
+declare insertDPrList: (S) [N S (DLst (Lst S))] -> (DLst (Lst S))
+# # WHE ASSUME THAT ALWAYS : N < len (Lst ...)
 assert  insertDPrList_axioms := (fun [
-		(insertDPrList zero v (lst (dpr l0 ls0 l1 ls1) tail_LDPRL)) =
-			(lst (dpr l0 (lst v ls0) l1 (lst v ls1)) tail_LDPRL)
+		(insertDPrList zero v (dlst lh (lst s tail_s) tail_DLLS)) =
+			(dlst lh (lst v (lst s tail_s)) tail_DLLS)
 
-		(insertDPrList (S n) v (lst dprl tail_LDPRL)) =
-			(lst dprl (insertDPrList n v tail_LDPRL))
+		(insertDPrList (S n) v (dlst lh lsts tail_DLLS)) =
+			(dlst lh lsts (insertDPrList n v tail_DLLS))
 	])
 
 module DHTable {
 	assert dht-st-axioms := (structure-axioms "DHTable")
 	define [dht-no-conf dht-no-junk] := dht-st-axioms
-	define [f f' n]        := [?f:(fn 'S N) ?f':(fn 'S N) ?n:N]
-	# ldpl := list distributed pair list
-	define [ldpl ldpl0 ldpl1] := [?ldpl:(Lst (DPr (Lst 'S) (Lst 'S)))  ?ldpl0:(Lst (DPr (Lst 'S) (Lst 'S))) ?ldpl1:(Lst (DPr (Lst 'S) (Lst 'S)))]
-	# lpl := list pair location 
-	define [lpl0 lpl]   := [?lpl0:(Lst (Pr Location Location)) ?lpl:(Lst (Pr Location Location))]   
+	define [v]           := [?v:'S]
+	define [rv n m]      := [?rv:N ?n:N ?m:N]
+	define [dt]          := [?dt:(DHTable 'S)]
+	define [ll]          := [?ll:(Lst Location)]
+	define [htl l0 l1]   := [?htl:Location ?l0:Location ?l1:Location]
+	define [hf f f']     := [?hf:(fn 'S N) ?f:(fn 'S N) ?f':(fn 'S N)]
+	define [dlls dlls0 dlls1] := [?dlls:(DLst (Lst 'S)) ?dlls0:(DLst (Lst 'S)) ?dlls1:(DLst (Lst 'S))]
 
 	assert* dhtr-no-conf :=
-	(iff
-		((dhtr f ldpl0) = (dhtr f' ldpl1))
-		((f = f') & (ldpl0 = ldpl1))
+	(
+		((dhtr f n l0 dlls0) =  (dhtr f' m l1 dlls1))
+		<==>
+		((f = f') & (n = m) & (l0 = l1) & (dlls0 = dlls1))
 	)
 
 	declare rep : (S) [(DHTable S)] -> (DHTRep S)	       
 
 	# overload rep HTable.rep
 
-	define [dt v v'] := [?dt:(DHTable 'S) ?v:'S ?v':'S]
+	# define [dt v v'] := [?dt:(DHTable 'S) ?v:'S ?v':'S]
 
 	assert rep-axioms :=
 	(fun [
-		(rep (dht-empty lpl f)) = (dhtr f (initDPrList ge lpl))
-		(rep (dht-insert dt v)) = [(dhtr f (insertDPrList n v ldpl))
-					when ((rep dt) = (dhtr f ldpl) & (f at v = n))]
+		(rep (dht_empty ll hf rv htl)) = (dhtr hf rv htl (initDPrList hf htl ll))
+		(rep (dht_insert dt v)) = [(dhtr hf rv htl (insertDPrList n v dlls))
+					when ((rep dt) = (dhtr hf rv htl dlls) & (f at v = n))]
 	])
 
 }
