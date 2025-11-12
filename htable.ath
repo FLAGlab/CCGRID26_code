@@ -7,15 +7,15 @@ load "lst-toset"
 open Function
 
 # Hashtable inductive generation as a sequence of API calls:
-structure (HTable S) := (ht-empty  (Fun S N)) |
+structure (HTable S) := (ht-empty  (fn S N)) |
                         (ht-insert (HTable S) S)
 
 # with element removal?!:
-# structure (HTable S) := (ht-empty (Fun S Boolean)) |
+# structure (HTable S) := (ht-empty (fn S Boolean)) |
 #                         (ht-insert t:(HTable S) v:S) |
 #                         (ht-remove t:(HTable S) v:S)
 
-datatype (HTRep S) := (htr (Fun S N) (Pr (Lst S) (Lst S)))
+datatype (HTRep S) := (htr (fn S N) (Pr (Lst S) (Lst S)))
 
 
 module HTable {
@@ -28,7 +28,7 @@ module HTable {
 
 	define [htr-no-conf htr-no-junk] := htr-dt-axioms
 
-	define [f f']      := [?f:(Fun 'S N) ?f':(Fun 'S N)]
+	define [f f']      := [?f:(fn 'S N) ?f':(fn 'S N)]
 	define [e o e' o'] := [?e:(Lst 'S) ?o:(Lst 'S) ?e':(Lst 'S) ?o':(Lst 'S)]
 
 	define htr-no-conf' :=
@@ -516,10 +516,10 @@ module HTable {
 
 	#---ht-hf
 
-	declare hf : (S) [(HTable S)] -> (Fun S N)
+	declare hf : (S) [(HTable S)] -> (fn S N)
 
 	define [t] := [?t:(HTable 'S)]
-	define [f] := [?f:(Fun 'S N)]
+	define [f] := [?f:(fn 'S N)]
 	define [e o v] := [?e:(Lst 'S) ?o:(Lst 'S) ?v:'S]
 
 	assert hf-axioms :=

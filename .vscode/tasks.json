@@ -6,7 +6,7 @@
       "type": "shell",
       "command": "timeout",
       "args": [
-        "5",             
+        "20",             
         "/home/mateosa/repos/athena/athena",
         "${file}"
       ],

@@ -1,0 +1,60 @@
+module bool{
+
+assert bool-axioms := (datatype-axioms "Boolean")
+define [bool-noconf bool-nojunk] := bool-axioms
+
+define (bool-true a=true) :=
+  match a=true {
+    (= (some-term a) true) => (!chain<- [a <== true [a=true]])}
+
+define (bool-false a=false) :=
+  match a=false {
+    (= (some-term a) false) =>
+      (!by-contradiction (~ a)
+	(!chain [a ==> false [a=false]]))} 
+
+define (true-bool a) :=
+  match [a] {
+    [(some-term a)] =>
+      (!by-contradiction (a = true)	     
+        assume (~ (a = true))
+          let {afalse := (!dsyl (!uspec bool-nojunk a) (~ (a = true)))} 
+            (!absurd a (!bool-false afalse)))}
+
+define (false-bool a) :=
+  match [a] {
+    [(not (some-term a))] =>
+      (!by-contradiction (a = false)	     
+        assume (~ (a = false))
+          let {atrue := (!dsyl (!uspec bool-nojunk a) (~ (a = false)))} 
+            (!absurd (!bool-true atrue) (~ a)))}
+
+  
+define (eq2equiv a=b) :=
+  match a=b {
+    (= a b) => (!chain [a <==> b [(a = b)]])}
+
+define (equiv2eq a<==>b) :=
+  match a<==>b {
+    (iff (some-term a) (some-term b)) =>
+      (!by-contradiction (a = b)
+	assume (~ (a = b))
+        (!two-cases
+	   assume a
+	     let{atrue := (!true-bool a);
+		 bb := (!chain<- [b <== a [a<==>b]]);  
+		 btrue := (!true-bool b);
+                 a=b := (!combine-equations atrue btrue)}
+	     (!absurd a=b (~ (a = b)))
+	   assume (~ a)
+	     let{afalse := (!false-bool (~ a));
+		 ab := (!chain<- [(~ b) <== (~ a) [a<==>b]]);  
+		 bfalse := (!false-bool (~ b));
+		 a=b := (!combine-equations afalse bfalse)}
+	     (!absurd a=b (~ (a = b)))))}
+
+} # close module bool
+
+#_ := (print "\nrl:\n" rl)
+open bool
+

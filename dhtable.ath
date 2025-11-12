@@ -2,13 +2,11 @@ load "htable.ath"
 load "dpair.ath"
 
 # Hashtable inductive generation as a sequence of API calls:
-structure (DHTable S) := (dht-empty  (Pr Location Location) (Fun S N)) |
+structure (DHTable S) := (dht-empty  (Pr Location Location) (fn S N)) |
                          (dht-insert (DHTable S) S)
 
 # Hashtable representation using lists
-datatype (DHTRep S) := (dhtr (Fun S N) (DPr (Lst S) (Lst S)))
-
-datatype (DHT S) := (dht (Fun S N) (Lst (DPr S)))
+datatype (DHTRep S) := (dhtr (fn S N) (DPr (Lst S) (Lst S)))
 
 module DHTable {
 			
@@ -16,10 +14,9 @@ module DHTable {
 	define [dht-no-conf dht-no-junk] := dht-st-axioms
 
 
-	define [f f']      := [?f:(Fun 'S N) ?f':(Fun 'S N)]
+	define [f f']      := [?f:(fn 'S N) ?f':(fn 'S N)]
 	define [e o e' o'] := [?e:(Lst 'S) ?o:(Lst 'S) ?e':(Lst 'S) ?o':(Lst 'S)]
-	define [le lo le' lo'] := [?le:Location  ?lo:Location
-				?le':Location ?lo':Location]
+	define [le lo le' lo'] := [?le:Location  ?lo:Location ?le':Location ?lo':Location]
 
 	assert* dhtr-no-conf :=
 	((dhtr f (dpr le e lo o)) = (dhtr f' (dpr le' e' lo' o')) <==>
@@ -34,13 +31,16 @@ module DHTable {
 	define [dt v v'] := [?dt:(DHTable 'S) ?v:'S ?v':'S]
 
 	assert rep-axioms :=
-	(fun
-	[(rep (dht-empty (pr le lo) f)) = (dhtr f (dpr le empty lo empty))
-		(rep (dht-insert dt v)) =
-		[(dhtr f (dpr le (lst v e) lo o)) when
-			((rep dt) = (dhtr f (dpr le e lo o)) & (f at v = zero))
-		(dhtr f (dpr le e lo (lst v o))) when
-			((rep dt) = (dhtr f (dpr le e lo o)) & (~ f at v = zero))]])
+	(fun [
+		(rep (dht-empty (pr le lo) f)) = (dhtr f (dpr le empty lo empty))
+		(rep (dht-insert dt v)) = 
+		[
+			(dhtr f (dpr le (lst v e) lo o)) when 
+								((rep dt) = (dhtr f (dpr le e lo o)) & (f at v = zero))
+			(dhtr f (dpr le e lo (lst v o))) when
+							    ((rep dt) = (dhtr f (dpr le e lo o)) & (~ f at v = zero))
+		]
+	])
 
 	
 	define rep-e :=
@@ -185,7 +185,7 @@ module DHTable {
 
 	#---dht-hf
 
-	declare hf : (S) [(DHTable S)] -> (Fun S N)
+	declare hf : (S) [(DHTable S)] -> (fn S N)
 
 	overload hf HTable.hf
 
@@ -200,7 +200,7 @@ module DHTable {
 	#  [(hf (dht-empty (pr le lo) f)) = f when ((alive le) | (alive lo)) 
 	#
 	# OR it could be assumed common knowledge?! (as defined)
-	# OR modeled optional as (Option (Fun S N))
+	# OR modeled optional as (Option (fn S N))
 
 
 	#---equal
@@ -646,7 +646,7 @@ module DHTable {
 						(b <==> ((v = v') | b')))))))
 
 		datatype-cases query-fc {
-		(dt as (dht-empty (pr le lo) f':(Fun 'S N))) =>
+		(dt as (dht-empty (pr le lo) f':(fn 'S N))) =>
 		pick-any v:'S
 			assume (alive dt)
 			let{_ := (!chain<- [(dt = (dht-empty (pr le lo) f') &
@@ -850,7 +850,7 @@ module DHTable {
 						(s = (Set.insert v' s')))))))
 
 		datatype-cases values-fc{
-		(dt as (dht-empty lp' f':(Fun 'S N))) =>
+		(dt as (dht-empty lp' f':(fn 'S N))) =>
 		assume (alive dt)
 			let{_ := (!chain<- [(dt = (dht-empty lp' f') &
 					(values dt) = (SOME Set.null))
