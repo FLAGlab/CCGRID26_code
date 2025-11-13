@@ -35,21 +35,21 @@ assert  insertDPrList_axioms := (fun [
 	])
 
 module DHTable {
-	assert dht-st-axioms := (structure-axioms "DHTable")
-	define [dht-no-conf dht-no-junk] := dht-st-axioms
+	assert dht_st_axioms := (structure-axioms "DHTable")
+	define [dht_no_conf dht_no_junk] := dht_st_axioms
 	define [v]           := [?v:'S]
-	define [rv rv' n m]  := [?rv:N ?rv':N ?n:N ?m:N]
-	define [dt dt']      := [?dt:(DHTable 'S)  ?dt':(DHTable 'S) ]
-	define [ll ll']      := [?ll:(Lst Location) ?ll':(Lst Location)]
-	define [htl htl' l0 l1]   := [?htl:Location ?htl':Location ?l0:Location ?l1:Location]
-	define [hf hf' f f']      := [?hf:(fn 'S N) ?hf':(fn 'S N) ?f:(fn 'S N) ?f':(fn 'S N)]
+	define [rv rv1 n m]  := [?rv:N ?rv1:N ?n:N ?m:N]
+	define [dt dt1]      := [?dt:(DHTable 'S)  ?dt1:(DHTable 'S) ]
+	define [ll ll1]      := [?ll:(Lst Location) ?ll1:(Lst Location)]
+	define [htl htl1 l0 l1] := [?htl:Location ?htl1:Location ?l0:Location ?l1:Location]
+	define [hf hf1 f g]     := [?hf:(fn 'S N) ?hf1:(fn 'S N) ?f:(fn 'S N) ?g:(fn 'S N)]
 	define [dlls dlls' dlls0 dlls1] := [?dlls:(DLst (Lst 'S)) ?dlls:(DLst (Lst 'S)) ?dlls0:(DLst (Lst 'S)) ?dlls1:(DLst (Lst 'S))]
 
-	assert* dhtr-no-conf :=
+	assert* dhtr_no_conf :=
 	(
-		((dhtr f n l0 dlls0) =  (dhtr f' m l1 dlls1))
+		((dhtr f n l0 dlls0) =  (dhtr g m l1 dlls1))
 		<==>
-		((f = f') & (n = m) & (l0 = l1) & (dlls0 = dlls1))
+		((f = g) & (n = m) & (l0 = l1) & (dlls0 = dlls1))
 	)
 
 	declare rep : (S) [(DHTable S)] -> (DHTRep S)	       
@@ -61,39 +61,53 @@ module DHTable {
 						when ((rep dt) = (dhtr hf rv htl dlls))]
 		])
 
-	define rep-e :=
+	define rep_e :=
 		(forall dt . exists hf rv htl dlls .
 			((rep dt) = (dhtr hf rv htl dlls))
 		)
 
-	by-induction rep-e {
-		(dt as (dht_empty ll' hf' rv' htl')) =>
+	by-induction rep_e {
+		(dt as (dht_empty ll1 hf1 rv1 htl1)) =>
 			let {
-				empty_dpr_list   := (initDPrList hf' htl' ll');
-				rep-dt := (!chain [
+				empty_dpr_list   := (initDPrList hf1 htl1 ll1);
+				rep_dt := (!chain [
 					(rep dt)
-					= (dhtr hf' rv' htl' empty_dpr_list) [rep_axioms] ])}
+					= (dhtr hf1 rv1 htl1 empty_dpr_list) [rep_axioms] ])}
 			(!egen* (exists hf rv htl dlls . ((rep dt) = (dhtr hf rv htl dlls))) 
-					[hf' rv' htl' empty_dpr_list])
-		| (dt as (dht_insert dt' v)) =>
+					[hf1 rv1 htl1 empty_dpr_list])
+		| (dt as (dht_insert dt1 v)) =>
 			let { 
-				ih := (exists hf' rv' htl' dlls' . ((rep dt') = (dhtr hf' rv' htl' dlls')))
+				ih := (exists hf1 rv1 htl1 dlls' . ((rep dt1) = (dhtr hf1 rv1 htl1 dlls')))
 			}
-			pick-witnesses hf'' rv'' htl'' dlls'' for ih rep_dt_def
+			pick-witnesses hf2 rv2 htl2 dlls2 for ih rep_dt_def
 			let {
-				insert_dpr_list := (insertDPrList (hf'' at v) v dlls'');
-				rep-dt := (!chain<- [
-					((rep (dht_insert dt' v)) = (dhtr hf'' rv'' htl'' insert_dpr_list))
+				insert_dpr_list := (insertDPrList (hf2 at v) v dlls2);
+				rep_dt := (!chain<- [
+					((rep (dht_insert dt1 v)) = (dhtr hf2 rv2 htl2 insert_dpr_list))
 					<== rep_dt_def   [rep_axioms]
 				])
 			}
 			(!egen* (exists hf rv htl dlls . ((rep dt) = (dhtr hf rv htl dlls))) 
-					[hf'' rv'' htl'' insert_dpr_list])
+					[hf2 rv2 htl2 insert_dpr_list])
 	}
-
-
-
 	# TODO: You need a correctness theorem for the value and its replica, i.e., each
 	# insertion in the dht must have the value and the value replicated rv number of times
 	# in the valid buckets
+
+	#---dht-query
+
+	# declare query : (S) [(DHTable S) S] -> (Option Boolean)
+
+	# assert query-axioms :=
+	# (fun [(query dt v) = [
+	# 		(SOME (v in e))
+	# 		when (((rep dt) = (dhtr f (dpr le e lo o))) & (f at v = zero) & (alive le)) 
+	# 		NONE 
+	# 		when (((rep dt) = (dhtr f (dpr le e lo o))) & (f at v = zero) & (~ alive le))
+	# 		(SOME (v in o))
+	# 		when (((rep dt) = (dhtr f (dpr le e lo o))) & (~ f at v = zero) & (alive lo))
+	# 		NONE 
+	# 		when (((rep dt) = (dhtr f (dpr le e lo o))) & (~ f at v = zero) & (~ alive lo))
+	# 	]])
+
 }
