@@ -93,6 +93,19 @@ module Lst {
     let {_ := (!chain-> [(isEmpty l) ==> (l = empty) [isEmpty-axiom]])}
           (!absurd (!qn (!fire empty-nohead [l])) e))
 
+  define [v h t] := [?v:'S ?h:'S ?t:(Lst 'S)]
+
+  declare in: (S) [S (Lst S)] -> Boolean
+  assert in_axioms := ( fun [
+    (in v empty) = false
+    (in v (lst h t)) = [
+      true when (v = h)
+      (in v t) when (~ v = h)
+    ]
+  ])
+
+
+
 } # close module Lst
 
 open Lst
