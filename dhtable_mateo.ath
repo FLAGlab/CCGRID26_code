@@ -12,10 +12,10 @@ datatype (DHTRep S) := (dhtr hf:(fn S N) rv:N htl:Location (DLst (Lst S)))
 module DHTable {
 
 	module DL_L_S {
-		define [s tail_s lsts l lh htl0 tail_l f  tail_DLLS DLLS n bucket rv] := 
-			[?s:'S ?tail_s:(Lst 'S) ?lsts:(Lst 'S) ?l:Location ?lh:Location ?htl0:Location 
-			 ?tail_l:(Lst Location) ?f:(fn 'S N) ?tail_DLLS:(DLst (Lst 'S)) ?DLLS:(DLst (Lst 'S))
-			 ?n:N ?bucket:N ?rv:N]
+		define [s hsv tail_s lsts l lh htl htl0 tail_l f  tail_DLLS DLLS O_DLLS n bucket rv] := 
+			[?s:'S ?hsv:'S ?tail_s:(Lst 'S) ?lsts:(Lst 'S) ?l:Location ?lh:Location ?htl:Location ?htl0:Location 
+			 ?tail_l:(Lst Location) ?f:(fn 'S N) ?tail_DLLS:(DLst (Lst 'S)) 
+			 ?DLLS:(DLst (Lst 'S)) ?O_DLLS:(DLst (Lst 'S)) ?n:N ?bucket:N ?rv:N]
 
 		declare initDPrList: (S) [(fn S N) Location (Lst Location)] -> (DLst (Lst S))
 
@@ -43,28 +43,29 @@ module DHTable {
 		
 		declare alive_modulo_replication: (S) [N N (DLst (Lst S)) (DLst (Lst S))] -> Boolean
 
-		# assert alive_modulo_replication_axioms := (fun [
-		# 	(alive_modulo_replication bucket rv DLLS) =
-		# 		[
-		# 			when (bucket = zero)
-		# 			false when (rv = zero)
-		# 			when (rv = (S zero))
-		# 			when (rv = (S N))
-		# 		]
-		# ])
-		# el minimo para rv es 1 (S zero)
 
-		# alive_modulo_replication (bucket rv dlls o_dlls) =
-			# if (bucket = zero):
-			# 	if (head dlls) = empty:
-			# 		if rv = (S N) :
-			# 			return (alive_modulo_replication zero (S N) o_dlls o_dlls)
-			# 	if rv = (S zero):
-			# 		return alive head dlls
-			# 	if rv = (S S N) and (head dlls) != empty:
-			# 		return (alive head dlls) or (alive_modulo_replication zero (S N) (tail dlls) o_dlls)
-			# if (bucket = S N):
-			# 	return (alive_modulo_replication N rv dlls o_dlls)
+		assert alive_modulo_replication_axioms := (fun [
+			(alive_modulo_replication zero (S zero) (dlst lh lsts tail_DLLS) O_DLLS) = 
+				(Location.alive lh)
+			(alive_modulo_replication zero (S S rv) (dlst lh lsts tail_DLLS) O_DLLS) = 
+				# Thi is horrible!!! it should be something like:
+				#   ((Location.alive lh) | (alive_modulo_replication zero (S rv) tail_DLLS O_DLLS))
+				# What if it is not an 'or' and instead and 'and'/'->'???
+				[
+					true 
+						when (Location.alive lh)
+					(alive_modulo_replication zero (S rv) tail_DLLS O_DLLS) 
+						when (~ Location.alive lh)
+				]
+			(alive_modulo_replication zero (S rv) (dempty htl) O_DLLS) = 
+				(alive_modulo_replication zero (S rv) O_DLLS O_DLLS)
+			# We are working under the assumption that the bucket value is alway a value
+			# that fulfills: 0 < (S bucket) < len DLLS. Otherwise this computation might
+			# not end
+			(alive_modulo_replication (S bucket) rv DLLS O_DLLS) = 
+				(alive_modulo_replication bucket rv DLLS O_DLLS) 
+		])
+
 		
 	}
 	define [initDPrList insertDPrList] := [DL_L_S.initDPrList DL_L_S.insertDPrList]
