@@ -171,17 +171,6 @@ module DHTable {
 		NONE when            ((rep dt) = (dhtr f (dpr le e lo o)) &
 					(~ alive le) & (~ alive lo))]])
 
-	#cvarela: alternative definition of values that considers partial
-	#failures = total failure: (different properties arise)
-	# assert values-axioms :=
-	#   (fun
-	#     [(values dt) =
-	#      [(SOME ((l2s e) \/ (l2s o))) when
-	#                            ((rep dt) = (dhtr f (dpr le e lo o)) &
-	# 			    (alive le) & (alive lo))
-	#       NONE when            ((rep dt) = (dhtr f (dpr le e lo o)) &
-	# 			    (~ ((alive le) & (alive lo))))]])
-
 
 	#---dht-hf
 

@@ -12,10 +12,12 @@ datatype (DHTRep S) := (dhtr hf:(fn S N) rv:N htl:Location (DLst (Lst S)))
 module DHTable {
 
 	module DL_L_S {
-		define [s htv tail_s lsts l lh htl htl0 tail_l f  tail_DLLS DLLS O_DLLS n bucket rv] := 
-			[?s:'S ?htv:'S ?tail_s:(Lst 'S) ?lsts:(Lst 'S) ?l:Location ?lh:Location ?htl:Location ?htl0:Location 
-			 ?tail_l:(Lst Location) ?f:(fn 'S N) ?tail_DLLS:(DLst (Lst 'S)) 
-			 ?DLLS:(DLst (Lst 'S)) ?O_DLLS:(DLst (Lst 'S)) ?n:N ?bucket:N ?rv:N]
+		define [s htv tail_s lsts l lh htl htl0 tail_l f  tail_DLLS DLLS O_DLLS n bucket 
+			    rv sets] := 
+			   [?s:'S ?htv:'S ?tail_s:(Lst 'S) ?lsts:(Lst 'S) ?l:Location ?lh:Location 
+			    ?htl:Location ?htl0:Location ?tail_l:(Lst Location) ?f:(fn 'S N) 
+				?tail_DLLS:(DLst (Lst 'S)) ?DLLS:(DLst (Lst 'S)) ?O_DLLS:(DLst (Lst 'S))
+				?n:N ?bucket:N ?rv:N ?sets:(Set.Set 'S)]
 
 		declare initDPrList: (S) [(fn S N) Location (Lst Location)] -> (DLst (Lst S))
 
@@ -86,6 +88,17 @@ module DHTable {
 			# not end
 			(in htv (S bucket) rv DLLS O_DLLS) = 
 				(in htv bucket rv DLLS O_DLLS) 
+		])
+
+		declare values : (S) [(DLst (Lst S)) (Set.Set S)] -> (Option (Set.Set S))
+		define [null insert] := [Set.null Set.insert]
+		assert values_axioms := (fun [
+			(values (dempty htl) (null)) = (NONE)
+			(values (dempty htl) (insert s sets)) = (SOME (insert s sets))
+			(values (dlst lh lsts tail_DLLS) sets) = [
+				(values tail_DLLS sets) when (~ Location.alive lh)
+				(values tail_DLLS (sets \/ (l2s lsts))) when (Location.alive lh)
+			]
 		])
 
 		
@@ -166,5 +179,17 @@ module DHTable {
 						when (~ alive_modulo_replication (hf at v) rv dlls dlls)
 			]]
 		)
+
+	#---dht-values
+
+	declare values : (S) [(DHTable S)] -> (Option (Set.Set S))
+
+
+	assert values-axioms :=
+	(fun
+		[(values dht) = [
+			(DL_L_S.values dlls Set.null)
+						when ((rep dht) = (dhtr hf rv htl dlls))]
+		])
 
 }
