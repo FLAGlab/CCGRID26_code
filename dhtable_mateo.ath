@@ -111,11 +111,11 @@ module DHTable {
 	define [dht_no_conf dht_no_junk] := dht_st_axioms
 	define [v]           := [?v:'S]
 	define [rv rv1 n m]  := [?rv:N ?rv1:N ?n:N ?m:N]
-	define [dht dht1]      := [?dht:(DHTable 'S)  ?dht1:(DHTable 'S) ]
+	define [dht dht1]    := [?dht:(DHTable 'S)  ?dht1:(DHTable 'S) ]
 	define [ll ll1]      := [?ll:(Lst Location) ?ll1:(Lst Location)]
 	define [htl htl1 l0 l1] := [?htl:Location ?htl1:Location ?l0:Location ?l1:Location]
 	define [hf hf1 f g]     := [?hf:(fn 'S N) ?hf1:(fn 'S N) ?f:(fn 'S N) ?g:(fn 'S N)]
-	define [dlls dlls' dlls0 dlls1] := [?dlls:(DLst (Lst 'S)) ?dlls:(DLst (Lst 'S)) ?dlls0:(DLst (Lst 'S)) ?dlls1:(DLst (Lst 'S))]
+	define [dlls dlls3 dlls0 dlls1] := [?dlls:(DLst (Lst 'S)) ?dlls:(DLst (Lst 'S)) ?dlls0:(DLst (Lst 'S)) ?dlls1:(DLst (Lst 'S))]
 
 	assert* dhtr_no_conf :=
 	(
@@ -125,6 +125,8 @@ module DHTable {
 	)
 
 	declare rep : (S) [(DHTable S)] -> (DHTRep S)	       
+
+	overload rep HTable.rep
 
 	assert rep_axioms :=
 		(fun [
@@ -149,7 +151,7 @@ module DHTable {
 					[hf1 rv1 htl1 empty_dpr_list])
 		| (dht as (dht_insert dht1 v)) =>
 			let { 
-				ih := (exists hf1 rv1 htl1 dlls' . ((rep dht1) = (dhtr hf1 rv1 htl1 dlls')))
+				ih := (exists hf1 rv1 htl1 dlls3 . ((rep dht1) = (dhtr hf1 rv1 htl1 dlls3)))
 			}
 			pick-witnesses hf2 rv2 htl2 dlls2 for ih rep_dt_def
 			let {
@@ -170,7 +172,7 @@ module DHTable {
 
 	declare query : (S) [(DHTable S) S] -> (Option Boolean)
 
-	assert query-axioms :=
+	assert query_axioms :=
 		(fun [(query dht v) = [
 			(SOME (in v (hf at v) rv dlls dlls))
 						when (((rep dht) = (dhtr hf rv htl dlls)) & 
@@ -185,11 +187,53 @@ module DHTable {
 	declare values : (S) [(DHTable S)] -> (Option (Set.Set S))
 
 
-	assert values-axioms :=
+	assert values_axioms :=
 	(fun
 		[(values dht) = [
 			(DL_L_S.values dlls Set.null)
 						when ((rep dht) = (dhtr hf rv htl dlls))]
 		])
 
+	#---dht-hf
+
+	declare get_hf : (S) [(DHTable S)] -> (fn S N)
+
+	assert get_hf_axioms :=
+	(fun
+	[(get_hf (dht_empty ll hf rv htl))    = hf
+		(get_hf (dht_insert dht v))           = (get_hf dht)])
+	
+
+	#---equal
+	#
+	# When are two distributed hashtables equal?
+	# cvarela: make it failure-independent:
+	assert dht_equa_axiom :=
+	(forall dht dht1 . (dht = dht1) <==>
+				(exists hf hf1 rv rv1 htl htl1 dlls dlls1 . 
+				((rep dht) = (dhtr hf rv htl dlls)) &
+				((rep dht1) = (dhtr hf1 rv1 htl1 dlls1)) &
+				(hf = hf1) & (rv = rv1) & (dlls = dlls1)))
+
+	declare equal: (S) [(HTable S) (DHTable S)] -> Boolean
+
+	define [ht] := [?ht:(HTable 'S)]
+
+	assert ht_dht_equal_axiom :=
+	(forall ht dht . (ht equal dht) <==> ((SOME HTable.values ht) = (values dht)))
+
+	#---dht-canonical
+	#
+	# every distributed hashtable has a "canonical" non-distributed
+	# hashtable where all location information has been removed
+
+	declare canonical: (S) [(DHTable S)] -> (HTable S)
+
+	assert* canonical-dempty :=
+		(canonical (dht_empty ll hf rv htl) = (ht-empty hf))
+
+	assert* canonical-dinsert :=
+		(canonical (dht_insert dht v) = (ht-insert (canonical dht) v))
+	
+	define canonical_equal := (forall dht . (canonical dht) equal dht)
 }
