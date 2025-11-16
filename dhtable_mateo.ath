@@ -12,8 +12,8 @@ datatype (DHTRep S) := (dhtr hf:(fn S N) rv:N htl:Location (DLst (Lst S)))
 module DHTable {
 
 	module DL_L_S {
-		define [s hsv tail_s lsts l lh htl htl0 tail_l f  tail_DLLS DLLS O_DLLS n bucket rv] := 
-			[?s:'S ?hsv:'S ?tail_s:(Lst 'S) ?lsts:(Lst 'S) ?l:Location ?lh:Location ?htl:Location ?htl0:Location 
+		define [s htv tail_s lsts l lh htl htl0 tail_l f  tail_DLLS DLLS O_DLLS n bucket rv] := 
+			[?s:'S ?htv:'S ?tail_s:(Lst 'S) ?lsts:(Lst 'S) ?l:Location ?lh:Location ?htl:Location ?htl0:Location 
 			 ?tail_l:(Lst Location) ?f:(fn 'S N) ?tail_DLLS:(DLst (Lst 'S)) 
 			 ?DLLS:(DLst (Lst 'S)) ?O_DLLS:(DLst (Lst 'S)) ?n:N ?bucket:N ?rv:N]
 
@@ -66,10 +66,33 @@ module DHTable {
 				(alive_modulo_replication bucket rv DLLS O_DLLS) 
 		])
 
+		declare in: (S) [S N N (DLst (Lst S)) (DLst (Lst S))] -> Boolean
+
+		assert in_axioms := (fun [
+			(in htv zero (S zero) (dlst lh lsts tail_DLLS) O_DLLS) = 
+				(Lst.in htv lsts)
+
+			(in htv zero (S S rv) (dlst lh lsts tail_DLLS) O_DLLS) = 
+				[
+					true 
+						when (Lst.in htv lsts)
+					(in htv zero (S rv) tail_DLLS O_DLLS) 
+						when (~ Lst.in htv lsts)
+				]
+			(in htv zero (S rv) (dempty htl) O_DLLS) = 
+				(in htv zero (S rv) O_DLLS O_DLLS)
+			# We are working under the assumption that the bucket value is alway a value
+			# that fulfills: 0 < (S bucket) < len DLLS. Otherwise this computation might
+			# not end
+			(in htv (S bucket) rv DLLS O_DLLS) = 
+				(in htv bucket rv DLLS O_DLLS) 
+		])
+
 		
 	}
-	define [initDPrList insertDPrList alive_modulo_replication] := 
-	       [DL_L_S.initDPrList DL_L_S.insertDPrList DL_L_S.alive_modulo_replication]
+	define [initDPrList insertDPrList alive_modulo_replication in] := 
+	       [DL_L_S.initDPrList DL_L_S.insertDPrList 
+		    DL_L_S.alive_modulo_replication DL_L_S.in]
 
 	assert dht_st_axioms := (structure-axioms "DHTable")
 	define [dht_no_conf dht_no_junk] := dht_st_axioms
@@ -134,17 +157,14 @@ module DHTable {
 
 	declare query : (S) [(DHTable S) S] -> (Option Boolean)
 
-	# assert query-axioms :=
-	# (fun [(query dht v) = [
-	# 		(SOME (v in e))
-	# 		when (((rep dht) = (dhtr f (dpr le e lo o))) & (f at v = zero) & (alive le)) 
-						# when ((rep dht) = (dhtr hf rv htl dlls) & )
-	# 		NONE 
-	# 		when (((rep dht) = (dhtr f (dpr le e lo o))) & (f at v = zero) & (~ alive le))
-	# 		(SOME (v in o))
-	# 		when (((rep dht) = (dhtr f (dpr le e lo o))) & (~ f at v = zero) & (alive lo))
-	# 		NONE 
-	# 		when (((rep dht) = (dhtr f (dpr le e lo o))) & (~ f at v = zero) & (~ alive lo))
-	# 	]])
+	assert query-axioms :=
+		(fun [(query dht v) = [
+			(SOME (in v (hf at v) rv dlls dlls))
+						when (((rep dht) = (dhtr hf rv htl dlls)) & 
+							  (alive_modulo_replication (hf at v) rv dlls dlls))
+			NONE 
+						when (~ alive_modulo_replication (hf at v) rv dlls dlls)
+			]]
+		)
 
 }
