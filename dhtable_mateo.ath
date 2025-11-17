@@ -131,7 +131,7 @@ module DHTable {
 	assert rep_axioms :=
 		(fun [
 			(rep (dht_empty ll hf rv htl)) = (dhtr hf rv htl (initDPrList hf htl ll))
-			(rep (dht_insert dht v)) = [(dhtr hf rv htl (insertDPrList (f at v) v dlls))
+			(rep (dht_insert dht v)) = [(dhtr hf rv htl (insertDPrList (hf at v) v dlls))
 						when ((rep dht) = (dhtr hf rv htl dlls))]
 		])
 
