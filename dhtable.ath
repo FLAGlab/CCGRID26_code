@@ -623,16 +623,33 @@ module DHTable {
 					(b <==> ((v = v0) | b'))))
 				[b0 b0'])
 
-
+		# lp: location pair
+		# query's functional correctness
+		define query-fc :=
+		(forall dt v . (a		# lp: location pair
 		# query's functional correctness
 		define query-fc :=
 		(forall dt v . (alive dt ==>
 			((exists lp f .        (dt = (dht-empty lp f) &
-						(query dt v) = (SOME false))) |
-			(exists dt' v' b b' . (dt = (dht-insert dt' v') &
+						(query dt v) = (SOME false)))
+			|
+			(exists dt' v' b b' . (
+						dt = (dht-insert dt' v') &
 						(query dt v)  = (SOME b) &
 						(query dt' v) = (SOME b') &
-						(b <==> ((v = v') | b')))))))
+						(b <==> ((v = v') | b'))
+						))
+			)))live dt ==>
+			((exists lp f .        (dt = (dht-empty lp f) &
+						(query dt v) = (SOME false)))
+			|
+			(exists dt' v' b b' . (
+						dt = (dht-insert dt' v') &
+						(query dt v)  = (SOME b) &
+						(query dt' v) = (SOME b') &
+						(b <==> ((v = v') | b'))
+						))
+			)))
 
 		datatype-cases query-fc {
 		(dt as (dht-empty (pr le lo) f':(fn 'S N))) =>
