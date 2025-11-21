@@ -91,6 +91,9 @@ module DHTable {
 				(in htv bucket rv DLLS O_DLLS) 
 		])
 
+		define in_init_false :=
+			(forall v f htl lsts bucket rv  . (~ (in v bucket rv (initDPrList f htl lsts) (initDPrList f htl lsts) )))
+
 		declare values : (S) [(DLst (Lst S)) (Set.Set S)] -> (Option (Set.Set S))
 		define [null insert] := [Set.null Set.insert]
 		assert values_axioms := (fun [
@@ -168,6 +171,33 @@ module DHTable {
 	# TODO: You need a correctness theorem for the value and its replica, i.e., each
 	# insertion in the dht must have the value and the value replicated rv number of times
 	# in the valid buckets
+
+	# getters definitions
+
+	declare get_hf : (S) [(DHTable S)] -> (fn S N)
+	assert get_hf_axioms :=
+	(fun
+	[(get_hf (dht_empty ll hf rv htl))    = hf
+		(get_hf (dht_insert dht v))       = (get_hf dht)])
+
+	declare get_rv : (S) [(DHTable S)] -> N
+	assert get_rv_axioms :=
+	(fun
+	[(get_rv (dht_empty ll hf rv htl))    = rv
+		(get_rv (dht_insert dht v))       = (get_rv dht)])
+
+	declare get_dlls : (S) [(DHTable S)] -> (DLst (Lst S))
+	assert get_dlls_axioms :=
+	(fun [ (get_dlls dht) = [dlls when ((rep dht) = (dhtr hf rv htl dlls))] ])
+
+
+	#---available
+
+	declare available: (S) [(DHTable S)] -> Boolean
+	assert available_axiom :=
+	(forall dht v . ((f = (get_hf dht)) & (rv = (get_rv dht)) & (dlls = (get_dlls dht)) )
+					==> (available_key (f at v) rv dlls dlls))
+
 	#---dht-query
 
 	declare query : (S) [(DHTable S) S] -> (Option Boolean)
@@ -181,88 +211,27 @@ module DHTable {
 						when (~ available_key (hf at v) rv dlls dlls)
 			]]
 		)
-
-	# # lp: location pair
-	# # query's functional correctness
-	# define query-fc :=
-	# (forall dt v . (alive dt ==>
-	# 	((exists lp f .        (dt = (dht-empty lp f) &
-	# 				(query dt v) = (SOME false)))
-	# 	|
-	# 	(exists dt' v' b b' . (
-	# 				dt = (dht-insert dt' v') &
-	# 				(query dt v)  = (SOME b) &
-	# 				(query dt' v) = (SOME b') &
-	# 				(b <==> ((v = v') | b'))
-	# 				))
-	# 	)))
 	
+	define query_fc_empty :=
+	(forall ll hf rv htl v .
+		((available (dht_empty ll hf rv htl)) ==>
+		  ((query (dht_empty ll hf rv htl) v) = (SOME false))))
 
-	#---dht-values
 
-	declare values : (S) [(DHTable S)] -> (Option (Set.Set S))
+	# #---dht-values
+
+	# declare values : (S) [(DHTable S)] -> (Option (Set.Set S))
 
 
-	assert values_axioms :=
-	(fun
-		[(values dht) = [
-			(DL_L_S.values dlls Set.null)
-						when ((rep dht) = (dhtr hf rv htl dlls))]
-		])
+	# assert values_axioms :=
+	# (fun
+	# 	[(values dht) = [
+	# 		(DL_L_S.values dlls Set.null)
+	# 					when ((rep dht) = (dhtr hf rv htl dlls))]
+	# 	])
 
-	#---dht-hf
-
-	declare get_hf : (S) [(DHTable S)] -> (fn S N)
-
-	assert get_hf_axioms :=
-	(fun
-	[(get_hf (dht_empty ll hf rv htl))    = hf
-		(get_hf (dht_insert dht v))       = (get_hf dht)])
 	
-	#---available
-
-	# declare available: (S) [(DHTable S)] -> Boolean
-	# (forall dht v . (v in (values dht)) & (f = (get_hf dht)) & (rv = (get_rv dht)) & (dlls = (get_dlls dht))
-	# 				==> 
-	# 				(available_key (v at f) rv dlls dlls))
 	
-
-	#---equal
-	#
-	# When are two distributed hashtables equal?
-	# cvarela: make it failure-independent:
-	assert dht_equa_axiom :=
-	(forall dht dht1 . (dht = dht1) <==>
-				(exists hf hf1 rv rv1 htl htl1 dlls dlls1 . 
-				((rep dht) = (dhtr hf rv htl dlls)) &
-				((rep dht1) = (dhtr hf1 rv1 htl1 dlls1)) &
-				(hf = hf1) & (rv = rv1) & (dlls = dlls1)))
-
-	declare equal: (S) [(HTable S) (DHTable S)] -> Boolean
-
-	define [ht] := [?ht:(HTable 'S)]
-
-	assert ht_dht_equal_axiom :=
-	(forall ht dht . (ht equal dht) <==> ((SOME HTable.values ht) = (values dht)))
-
-	#---dht-canonical
-	#
-	# every distributed hashtable has a "canonical" non-distributed
-	# hashtable where all location information has been removed
-
-	declare canonical: (S) [(DHTable S)] -> (HTable S)
-
-	assert* canonical_dempty :=
-		(canonical (dht_empty ll hf rv htl) = (ht-empty hf))
-
-	assert* canonical_dinsert :=
-		(canonical (dht_insert dht v) = (ht-insert (canonical dht) v))
-	
-	define canonical_equal := (forall dt . (canonical dht) equal dht)
-
-
-
-
 
 
 }
