@@ -43,29 +43,30 @@ module DHTable {
 					(dlst lh lsts (insertDPrList n v tail_DLLS))
 			])
 		
-		declare alive_modulo_replication: (S) [N N (DLst (Lst S)) (DLst (Lst S))] -> Boolean
+		declare available_key: (S) [N N (DLst (Lst S)) (DLst (Lst S))] -> Boolean
 
 
 		assert alive_modulo_replication_axioms := (fun [
-			(alive_modulo_replication zero (S zero) (dlst lh lsts tail_DLLS) O_DLLS) = 
+			# TODO: change (S zero) to just zero... as in the paper
+			(available_key zero (S zero) (dlst lh lsts tail_DLLS) O_DLLS) = 
 				(Location.alive lh)
-			(alive_modulo_replication zero (S S rv) (dlst lh lsts tail_DLLS) O_DLLS) = 
+			(available_key zero (S S rv) (dlst lh lsts tail_DLLS) O_DLLS) = 
 				# Thi is horrible!!! it should be something like:
-				#   ((Location.alive lh) | (alive_modulo_replication zero (S rv) tail_DLLS O_DLLS))
+				#   ((Location.alive lh) | (available_key zero (S rv) tail_DLLS O_DLLS))
 				# What if it is not an 'or' and instead and 'and'/'->'???
 				[
 					true 
 						when (Location.alive lh)
-					(alive_modulo_replication zero (S rv) tail_DLLS O_DLLS) 
+					(available_key zero (S rv) tail_DLLS O_DLLS) 
 						when (~ Location.alive lh)
 				]
-			(alive_modulo_replication zero (S rv) (dempty htl) O_DLLS) = 
-				(alive_modulo_replication zero (S rv) O_DLLS O_DLLS)
+			(available_key zero (S rv) (dempty htl) O_DLLS) = 
+				(available_key zero (S rv) O_DLLS O_DLLS)
 			# We are working under the assumption that the bucket value is alway a value
 			# that fulfills: 0 < (S bucket) < len DLLS. Otherwise this computation might
 			# not end
-			(alive_modulo_replication (S bucket) rv DLLS O_DLLS) = 
-				(alive_modulo_replication bucket rv DLLS O_DLLS) 
+			(available_key (S bucket) rv DLLS O_DLLS) = 
+				(available_key bucket rv DLLS O_DLLS) 
 		])
 
 		declare in: (S) [S N N (DLst (Lst S)) (DLst (Lst S))] -> Boolean
@@ -103,9 +104,9 @@ module DHTable {
 
 		
 	}
-	define [initDPrList insertDPrList alive_modulo_replication in] := 
+	define [initDPrList insertDPrList available_key in] := 
 	       [DL_L_S.initDPrList DL_L_S.insertDPrList 
-		    DL_L_S.alive_modulo_replication DL_L_S.in]
+		    DL_L_S.available_key DL_L_S.in]
 
 	assert dht_st_axioms := (structure-axioms "DHTable")
 	define [dht_no_conf dht_no_junk] := dht_st_axioms
@@ -167,7 +168,6 @@ module DHTable {
 	# TODO: You need a correctness theorem for the value and its replica, i.e., each
 	# insertion in the dht must have the value and the value replicated rv number of times
 	# in the valid buckets
-
 	#---dht-query
 
 	declare query : (S) [(DHTable S) S] -> (Option Boolean)
@@ -176,11 +176,27 @@ module DHTable {
 		(fun [(query dht v) = [
 			(SOME (in v (hf at v) rv dlls dlls))
 						when (((rep dht) = (dhtr hf rv htl dlls)) & 
-							  (alive_modulo_replication (hf at v) rv dlls dlls))
+							  (available_key (hf at v) rv dlls dlls))
 			NONE 
-						when (~ alive_modulo_replication (hf at v) rv dlls dlls)
+						when (~ available_key (hf at v) rv dlls dlls)
 			]]
 		)
+
+	# # lp: location pair
+	# # query's functional correctness
+	# define query-fc :=
+	# (forall dt v . (alive dt ==>
+	# 	((exists lp f .        (dt = (dht-empty lp f) &
+	# 				(query dt v) = (SOME false)))
+	# 	|
+	# 	(exists dt' v' b b' . (
+	# 				dt = (dht-insert dt' v') &
+	# 				(query dt v)  = (SOME b) &
+	# 				(query dt' v) = (SOME b') &
+	# 				(b <==> ((v = v') | b'))
+	# 				))
+	# 	)))
+	
 
 	#---dht-values
 
@@ -201,7 +217,14 @@ module DHTable {
 	assert get_hf_axioms :=
 	(fun
 	[(get_hf (dht_empty ll hf rv htl))    = hf
-		(get_hf (dht_insert dht v))           = (get_hf dht)])
+		(get_hf (dht_insert dht v))       = (get_hf dht)])
+	
+	#---available
+
+	# declare available: (S) [(DHTable S)] -> Boolean
+	# (forall dht v . (v in (values dht)) & (f = (get_hf dht)) & (rv = (get_rv dht)) & (dlls = (get_dlls dht))
+	# 				==> 
+	# 				(available_key (v at f) rv dlls dlls))
 	
 
 	#---equal
@@ -229,11 +252,17 @@ module DHTable {
 
 	declare canonical: (S) [(DHTable S)] -> (HTable S)
 
-	assert* canonical-dempty :=
+	assert* canonical_dempty :=
 		(canonical (dht_empty ll hf rv htl) = (ht-empty hf))
 
-	assert* canonical-dinsert :=
+	assert* canonical_dinsert :=
 		(canonical (dht_insert dht v) = (ht-insert (canonical dht) v))
 	
-	define canonical_equal := (forall dht . (canonical dht) equal dht)
+	define canonical_equal := (forall dt . (canonical dht) equal dht)
+
+
+
+
+
+
 }
