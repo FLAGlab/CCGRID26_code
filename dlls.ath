@@ -1,0 +1,83 @@
+load "lst-in"
+load "lst-toset"
+load "dlist.ath"
+load "algebra/function"
+open Function
+module DL_L_S {
+    define [f]     := [?f:(fn 'S N)]
+    define [lsts]  := [?lsts:(Lst 'S)]
+    define [s htv v]      := [?s:'S ?htv:'S ?v:'S]
+    define [n rv bucket]  := [?n:N ?rv:N ?bucket:N]
+    define [dlls tail_dlls o_dlls]  := 
+           [?dlls:(DLst (Lst 'S)) ?tail_dlls:(DLst (Lst 'S)) ?o_dlls:(DLst (Lst 'S))]
+    define [l l0 lh htl htl0 ll tail_l] := 
+           [?l:Location ?l0:Location ?lh:Location ?htl:Location ?htl0:Location
+            ?ll:(Lst Location) ?tail_l:(Lst Location)]
+
+    declare initDPrList: (S) [(fn S N) Location (Lst Location)] -> (DLst (Lst S))
+    assert  initDPrList_axioms := 
+         (fun [ 
+            (initDPrList f htl0 empty) = (dempty htl0)
+            (initDPrList f htl0 (lst l tail_l)) = (dlst l empty (initDPrList f htl0 tail_l))
+        ])
+
+    declare in: (S) [N N (DLst (Lst S)) (DLst (Lst S)) S] -> Boolean
+    assert in_axioms := (fun [
+        (in zero zero (dempty htl) o_dlls htv) <==> false
+        (in zero zero (dlst lh lsts tail_dlls) o_dlls htv) <==> 
+            (Lst.in htv lsts)
+        (in zero (S rv) (dlst lh lsts tail_dlls) o_dlls htv) <==>
+            [
+                true 
+                    when (Lst.in htv lsts)
+                (in zero rv tail_dlls o_dlls htv) 
+                    when (~ Lst.in htv lsts)
+            ]
+        (in zero (S rv) (dempty htl) o_dlls htv) <==>
+            (in zero (S rv) o_dlls o_dlls htv)
+        (in (S bucket) rv dlls o_dlls htv) <==>
+            (in bucket rv dlls o_dlls htv) 
+        # # I dont thinks this is necessary buy may be it is safe:
+        (in bucket rv dlls (dempty htl) htv) <==>
+            false
+    ])
+    
+    define in_init_false_lsts := 
+                  (forall  lsts f v htl . (~ in zero zero (initDPrList f htl lsts) (initDPrList f htl lsts) v ))
+
+    by-induction in_init_false_lsts {
+        empty =>
+        pick-any f v htl
+            let {
+                predicate := (in zero zero (initDPrList f htl empty) (initDPrList f htl empty) v);
+                init_empty_case := (!chain [ (initDPrList f htl empty) 
+                                            = (dempty htl) [initDPrList_axioms] ]) ;
+                in_false :=
+                    (!chain [ 
+                        predicate
+                        ==> (in zero zero (dempty htl) (initDPrList f htl empty) v)    [init_empty_case]
+                        ==> false                                                      [in_axioms]
+                    ])
+            }
+            (!by-contradiction (~ predicate) in_false)
+        | (lsts as (lst l0 tail_l)) =>
+        # In this case I do not use the IH... this means that this proof can be done without
+        # by-induction?... I think that no, rather it should be done with datatype-cases
+        pick-any f v htl
+        let { 
+            predicate   := (in zero zero (initDPrList f htl (lst l0 tail_l)) (initDPrList f htl (lst l0 tail_l)) v);
+            init_lsts   := (!chain [ (initDPrList f htl (lst l0 tail_l)) 
+                                    = (dlst l0 empty (initDPrList f htl tail_l)) [initDPrList_axioms] ]);
+            in_false    := (!chain [
+                   predicate
+                ==> (in zero zero (dlst l0 empty (initDPrList f htl tail_l)) (dlst l0 empty (initDPrList f htl tail_l)) v) [init_lsts]
+                ==> (Lst.in v empty)                   [in_axioms]
+                ==> false                              [Lst.in_axioms]
+            ])}
+        (!by-contradiction (~predicate) in_false)
+    }
+	
+    # (forall rv lst v f htl . (~ (in zero rv (initDPrList f htl lsts) (initDPrList f htl lsts) v )))
+
+}
+
