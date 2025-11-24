@@ -1,0 +1,117 @@
+# 442
+load "nat-plus"
+load "algebra/function"
+load "lst-in"
+load "lst-toset"
+load "dlist.ath"
+open Function
+# ll := Location List; hf := hash function; rv := replicate value; htl := hash table location
+structure (DHTable S) := (dht_empty  ll:(Lst Location) hf:(fn S N) rv:N htl:Location) |
+                         (dht_insert (DHTable S) S)
+
+datatype (DHTRep S) := (dhtr hf:(fn S N) rv:N htl:Location (DLst (Lst S)))
+# rv must always be > 0
+
+
+module DHTable {
+
+	module DL_L_S {
+		define [s htv tail_s lsts l lh htl htl0 ll tail_l f  tail_dlls dlls o_dlls n bucket 
+			    rv sets] := 
+			   [?s:'S ?htv:'S ?tail_s:(Lst 'S) ?lsts:(Lst 'S) ?l:Location ?lh:Location 
+			    ?htl:Location ?htl0:Location ?ll:(Lst Location) ?tail_l:(Lst Location) ?f:(fn 'S N) 
+				?tail_dlls:(DLst (Lst 'S)) ?dlls:(DLst (Lst 'S)) ?o_dlls:(DLst (Lst 'S))
+				?n:N ?bucket:N ?rv:N ?sets:(Set.Set 'S)]
+
+		declare initDPrList: (S) [(fn S N) Location (Lst Location)] -> (DLst (Lst S))
+		assert  initDPrList_axioms :=  (fun [ 
+				(initDPrList f htl0 (lst l tail_l))  =
+					[
+						(dlst l empty (dempty htl0))
+							when (tail_l = empty)
+						(dlst l empty (initDPrList f htl0 tail_l))
+							when (~(tail_l = empty))
+					]
+				(initDPrList f htl0 empty)  = (dempty htl0)
+			])
+
+		declare in: (S) [N N (DLst (Lst S)) (DLst (Lst S)) S] -> Boolean
+		assert in_axioms := (fun [
+			(in zero zero (dempty htl) o_dlls htv) <==> false
+			(in zero zero (dlst lh lsts tail_dlls) o_dlls htv) <==> 
+				(Lst.in htv lsts)
+			(in zero (S rv) (dlst lh lsts tail_dlls) o_dlls htv) <==>
+				[
+					true 
+						when (Lst.in htv lsts)
+					(in zero rv tail_dlls o_dlls htv) 
+						when (~ Lst.in htv lsts)
+				]
+			(in zero (S rv) (dempty htl) o_dlls htv) <==>
+				(in zero (S rv) o_dlls o_dlls htv)
+			(in (S bucket) rv dlls o_dlls htv) <==>
+				(in bucket rv dlls o_dlls htv) 
+			# # I dont thinks this is necessary buy may be it is safe:
+			(in bucket rv dlls (dempty htl) htv) <==>
+				false
+		])
+
+		# define test :=
+		# 	(forall v f htl . (~ (in zero zero (initDPrList f htl empty) (initDPrList f htl empty) v )))
+		# 	conclude test
+				pick-any v f htl
+					let {
+						predicate := (in zero zero (initDPrList f htl empty) (initDPrList f htl empty) v);
+						init_empty_case := (!chain [ (initDPrList f htl empty) 
+													= (dempty htl) [initDPrList_axioms] ]) ;
+						in_false :=
+							(!chain [ 
+								predicate
+								==> (in zero zero (dempty htl) (initDPrList f htl empty) v)             [init_empty_case]
+								==> false                                                            [in_axioms]
+							])
+					}
+					(!by-contradiction (~ predicate) in_false)
+
+		by-induction (forall lst v f htl . (~ (in zero zero (initDPrList f htl lsts) (initDPrList f htl lsts) v ))) {
+			empty ==>
+				pick-any v f htl
+					let {
+						predicate := (in zero zero (initDPrList f htl empty) (initDPrList f htl empty) v);
+						init_empty_case := (!chain [ (initDPrList f htl empty) 
+													= (dempty htl) [initDPrList_axioms] ]) ;
+						in_false :=
+							(!chain [ 
+								predicate
+								==> (in zero zero (dempty htl) (initDPrList f htl empty) v)             [init_empty_case]
+								==> false                                                            [in_axioms]
+							])
+					}
+					(!by-contradiction (~ predicate) in_false)
+			| (z as (lst))
+		}
+
+		# define in_init_false :=
+		# 	(forall bucket rv lsts v f htl . (~ (in bucket rv (initDPrList f htl lsts) (initDPrList f htl lsts) v )))
+		# by-induction in_init_false {
+		# 	zero ==>
+		# 		by-induction (forall rv lst v f htl . (~ (in zero rv (initDPrList f htl lsts) (initDPrList f htl lsts) v ))) {
+		# 			zero ==>
+		# 				by-induction (forall lst v f htl . (~ (in zero zero (initDPrList f htl lsts) (initDPrList f htl lsts) v ))) {
+		# 					empty ==>
+
+		# 					# | (z as (lst))
+		# 				}
+				
+
+		# 			|(y as (S rv))
+
+		# 		}
+
+
+		# 	| (x as (S bucket)) ==>
+		# }
+		
+		
+	}
+}
