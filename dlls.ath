@@ -6,8 +6,8 @@ open Function
 module DL_L_S {
     define [f]     := [?f:(fn 'S N)]
     define [lsts]  := [?lsts:(Lst 'S)]
-    define [s htv v]      := [?s:'S ?htv:'S ?v:'S]
-    define [n rv bucket]  := [?n:N ?rv:N ?bucket:N]
+    define [s htv v]          := [?s:'S ?htv:'S ?v:'S]
+    define [n rv rv0 bucket]  := [?n:N ?rv:N ?rv0:N ?bucket:N]
     define [dlls tail_dlls o_dlls]  := 
            [?dlls:(DLst (Lst 'S)) ?tail_dlls:(DLst (Lst 'S)) ?o_dlls:(DLst (Lst 'S))]
     define [l l0 lh htl htl0 ll tail_l] := 
@@ -21,11 +21,16 @@ module DL_L_S {
             (initDPrList f htl0 (lst l tail_l)) = (dlst l empty (initDPrList f htl0 tail_l))
         ])
 
+    # TODO: need a proof for this
+    assert initDPrList_characterization :=
+    (forall f htl lsts . (
+                          ((initDPrList f htl lsts) = (dempty htl)) 
+                        | (exists l tail_l . (initDPrList f htl lsts) = (dlst l empty (initDPrList f htl tail_l) ))))
+
     declare in: (S) [N N (DLst (Lst S)) (DLst (Lst S)) S] -> Boolean
     assert in_axioms := (fun [
         (in zero zero (dempty htl) o_dlls htv) <==> false
-        (in zero zero (dlst lh lsts tail_dlls) o_dlls htv) <==> 
-            (Lst.in htv lsts)
+        (in zero zero (dlst lh lsts tail_dlls) o_dlls htv) <==> (Lst.in htv lsts)
         (in zero (S rv) (dlst lh lsts tail_dlls) o_dlls htv) <==>
             [
                 true 
@@ -33,18 +38,14 @@ module DL_L_S {
                 (in zero rv tail_dlls o_dlls htv) 
                     when (~ Lst.in htv lsts)
             ]
-        (in zero (S rv) (dempty htl) o_dlls htv) <==>
-            (in zero (S rv) o_dlls o_dlls htv)
-        (in (S bucket) rv dlls o_dlls htv) <==>
-            (in bucket rv dlls o_dlls htv) 
-        # # I dont thinks this is necessary buy may be it is safe:
-        (in bucket rv dlls (dempty htl) htv) <==>
-            false
+        (in zero (S rv) (dempty htl) o_dlls htv) <==> (in zero (S rv) o_dlls o_dlls htv)
+        (in (S bucket) rv dlls o_dlls htv) <==> (in bucket rv dlls o_dlls htv) 
+        (in bucket rv dlls (dempty htl) htv) <==> false
     ])
     
     define in_init_false_lsts := 
-                  (forall  lsts f v htl . (~ in zero zero (initDPrList f htl lsts) (initDPrList f htl lsts) v ))
-
+        (forall  lsts f v htl . 
+            (~ in zero zero (initDPrList f htl lsts) (initDPrList f htl lsts) v ))
     by-induction in_init_false_lsts {
         empty =>
         pick-any f v htl
@@ -60,9 +61,10 @@ module DL_L_S {
                     ])
             }
             (!by-contradiction (~ predicate) in_false)
-        | (lsts as (lst l0 tail_l)) =>
-        # In this case I do not use the IH... this means that this proof can be done without
-        # by-induction?... I think that no, rather it should be done with datatype-cases
+        | (lst l0 tail_l) =>
+        # TODO: In this case I do not use the IH... this means that this proof can be done
+        # without by-induction?... I think that no, rather it should be done with
+        # datatype-cases
         pick-any f v htl
         let { 
             predicate   := (in zero zero (initDPrList f htl (lst l0 tail_l)) (initDPrList f htl (lst l0 tail_l)) v);
@@ -76,8 +78,46 @@ module DL_L_S {
             ])}
         (!by-contradiction (~predicate) in_false)
     }
+
 	
-    # (forall rv lst v f htl . (~ (in zero rv (initDPrList f htl lsts) (initDPrList f htl lsts) v )))
+    define in_init_false_rv := 
+        (forall rv lsts f v htl . 
+            (~ in zero rv (initDPrList f htl lsts) (initDPrList f htl lsts) v ))
+
+
+
+    by-induction in_init_false_rv {
+        zero =>
+        pick-any lsts f v htl
+            (!chain<- [
+                (~ in zero zero (initDPrList f htl lsts) (initDPrList f htl lsts) v )
+                <== true [in_init_false_lsts]
+            ])
+        | (S rv0) =>
+        # by-induction (forall rv lsts f v htl . 
+        #     (~ in zero rv (initDPrList f htl lsts) (initDPrList f htl lsts) v ))
+
+
+        pick-any lsts f v htl
+        (!cases (!uspec* initDPrList_characterization [f htl lts])
+            assume  empty_dlst := ((initDPrList f htl lsts) = (dempty htl)) 
+            (!by-contradiction
+                (~ in zero (S rv0) (initDPrList f htl lsts) (initDPrList f htl lsts) v)
+                (!chain [ 
+                        (in zero (S rv0) (initDPrList f htl lsts) (initDPrList f htl lsts) v)
+                    ==> (in zero (S rv0) (initDPrList f htl lsts) (dempty htl) v) [empty_dlst]
+                    ==> false                                                   [in_axioms]
+                ]))
+            assume no_empty_dlst := 
+                    (exists l tail_l . (initDPrList f htl lsts) = (dlst l empty (initDPrList f htl tail_l) ))
+            # It would be nice if I can do this... use this IH, if not ..... juuuuuum I
+            # don't know how else!
+            let { ih := (~ in zero rv (initDPrList f htl tail_l) (initDPrList f htl tail_l) v)}
+        )
+        
+
+    }
+
 
 }
 
