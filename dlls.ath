@@ -1,18 +1,18 @@
 load "lst-in"
 load "lst-toset"
 load "dlist.ath"
-load "algebra/function"
+load "function.ath"
 open Function
 module DL_L_S {
     define [f]     := [?f:(fn 'S N)]
     define [lsts]  := [?lsts:(Lst 'S)]
-    define [s htv v]          := [?s:'S ?htv:'S ?v:'S]
+    define [s htv v head]          := [?s:'S ?htv:'S ?v:'S ?head:(Lst 'S)]
     define [n rv rv0 bucket]  := [?n:N ?rv:N ?rv0:N ?bucket:N]
     define [dlls tail_dlls o_dlls]  := 
            [?dlls:(DLst (Lst 'S)) ?tail_dlls:(DLst (Lst 'S)) ?o_dlls:(DLst (Lst 'S))]
-    define [l l0 lh htl htl0 ll tail_l] := 
+    define [l l0 lh htl htl0 ll tail_l tail_l0] := 
            [?l:Location ?l0:Location ?lh:Location ?htl:Location ?htl0:Location
-            ?ll:(Lst Location) ?tail_l:(Lst Location)]
+            ?ll:(Lst Location) ?tail_l:(Lst Location) ?tail_l0:(Lst Location)]
 
     declare initDPrList: (S) [(fn S N) Location (Lst Location)] -> (DLst (Lst S))
     assert  initDPrList_axioms := 
@@ -21,7 +21,7 @@ module DL_L_S {
             (initDPrList f htl0 (lst l tail_l)) = (dlst l empty (initDPrList f htl0 tail_l))
         ])
 
-    # TODO: need a proof for this
+    # TODO: need a proof for this.. should be easy
     assert initDPrList_characterization :=
     (forall f htl lsts . (
                           ((initDPrList f htl lsts) = (dempty htl)) 
@@ -79,13 +79,9 @@ module DL_L_S {
         (!by-contradiction (~predicate) in_false)
     }
 
-	
     define in_init_false_rv := 
         (forall rv lsts f v htl . 
             (~ in zero rv (initDPrList f htl lsts) (initDPrList f htl lsts) v ))
-
-
-
     by-induction in_init_false_rv {
         zero =>
         pick-any lsts f v htl
@@ -94,30 +90,33 @@ module DL_L_S {
                 <== true [in_init_false_lsts]
             ])
         | (S rv0) =>
-        # by-induction (forall rv lsts f v htl . 
-        #     (~ in zero rv (initDPrList f htl lsts) (initDPrList f htl lsts) v ))
-
-
         pick-any lsts f v htl
-        (!cases (!uspec* initDPrList_characterization [f htl lts])
+        (!cases (!uspec* initDPrList_characterization [f htl lsts])
             assume  empty_dlst := ((initDPrList f htl lsts) = (dempty htl)) 
             (!by-contradiction
                 (~ in zero (S rv0) (initDPrList f htl lsts) (initDPrList f htl lsts) v)
                 (!chain [ 
                         (in zero (S rv0) (initDPrList f htl lsts) (initDPrList f htl lsts) v)
                     ==> (in zero (S rv0) (initDPrList f htl lsts) (dempty htl) v) [empty_dlst]
-                    ==> false                                                   [in_axioms]
+                    ==> false                                                     [in_axioms]
                 ]))
             assume no_empty_dlst := 
-                    (exists l tail_l . (initDPrList f htl lsts) = (dlst l empty (initDPrList f htl tail_l) ))
-            # It would be nice if I can do this... use this IH, if not ..... juuuuuum I
-            # don't know how else!
-            let { ih := (~ in zero rv (initDPrList f htl tail_l) (initDPrList f htl tail_l) v)}
+                (exists l tail_l . 
+                    (initDPrList f htl lsts) = (dlst l empty (initDPrList f htl tail_l)))
+            pick-witnesses l0 tail_l0 for no_empty_dlst init_characterization
+            let {
+                ih := (~ in zero rv0 (initDPrList f htl tail_l0) (initDPrList f htl lsts) v)}
+            (!by-contradiction
+                (~ in zero (S rv0) (initDPrList f htl lsts) (initDPrList f htl lsts) v)
+                (!chain [
+                        (in zero (S rv0) (initDPrList f htl lsts) (initDPrList f htl lsts) v)
+                    ==> (in zero (S rv0) (dlst l0 empty (initDPrList f htl tail_l0)) (initDPrList f htl lsts) v) [init_characterization]
+                    ==> (in zero rv0 (initDPrList f htl tail_l0) (initDPrList f htl lsts) v) [force]
+                    ==> false                                                                [force]
+                ])
+            )
         )
-        
-
     }
-
 
 }
 
