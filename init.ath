@@ -99,16 +99,10 @@ module DHTable {
 		# 			zero ==>
 		# 				by-induction (forall lst v f htl . (~ (in zero zero (initDPrList f htl lsts) (initDPrList f htl lsts) v ))) {
 		# 					empty ==>
-
 		# 					# | (z as (lst))
 		# 				}
-				
-
 		# 			|(y as (S rv))
-
 		# 		}
-
-
 		# 	| (x as (S bucket)) ==>
 		# }
 		
