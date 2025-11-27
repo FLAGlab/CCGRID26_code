@@ -157,5 +157,41 @@ module DL_L_S {
         )
     }
 
+    define in_init_false_aux :=
+        (forall bucket rv lsts f v htl . 
+            (in bucket rv (initDPrList f htl lsts) (initDPrList f htl lsts) v ) ==> false)
+    by-induction in_init_false_aux {
+        zero =>
+        pick-any rv lsts f v htl
+            (!chain<- [
+                    ((in zero rv (initDPrList f htl lsts) (initDPrList f htl lsts) v ) ==> false)
+                <== (~ in zero rv (initDPrList f htl lsts) (initDPrList f htl lsts) v )  
+                <== true [in_init_false_rv]
+            ])
+        | (S bucket) =>
+        let {
+            IH := ((in bucket rv (initDPrList f htl lsts) (initDPrList f htl lsts) v ) ==> false)
+         }
+        pick-any rv lsts f v htl
+        (!chain [
+                (in (S bucket) rv (initDPrList f htl lsts) (initDPrList f htl lsts) v )   
+            ==> (in bucket rv (initDPrList f htl lsts) (initDPrList f htl lsts) v )   [in_axioms]
+            # TODO: Note how here the justification must be [IH], but if I write it I got
+            #       an error. Why you might ask, well I just don't know...
+            ==> false                                                                 
+        ])
+    }
+
+    define in_init_false :=
+        (forall bucket rv lsts f v htl . 
+            (~ in bucket rv (initDPrList f htl lsts) (initDPrList f htl lsts) v ))
+    conclude in_init_false
+        pick-any bucket rv lsts f v htl
+            (!by-contradiction
+                (~ in bucket rv (initDPrList f htl lsts) (initDPrList f htl lsts) v )
+                (!uspec* in_init_false_aux [bucket rv lsts f v htl])
+            )
+
+
 }
 
