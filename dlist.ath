@@ -314,15 +314,15 @@ by-induction canonical-equal {
     <== ((canonical t) equal t)                [augment]])}
 
 # when are a list and a distributed list behaviorally equivalent
-declare equiv: (S) [(Lst S) (DLst S)] -> Boolean
+declare Equiv: (S) [(Lst S) (DLst S)] -> Boolean
 
 define [l dl] := [?l:(Lst 'S) ?dl:(DLst 'S)]
 
-assert* lst-dlst-equiv-def := (l equiv dl <==>
+assert* lst-dlst-Equiv-def := (l Equiv dl <==>
 				 ((isEmpty l & (dlst-isEmpty dl = SOME true))
 			       | (getHead dl = SOME head l &
 				  exists t . (getTail dl = SOME t &
-					      (tail l) equiv t))))
+					      (tail l) Equiv t))))
 
 #cvarela: may need to add:  (~ isEmpty l  & (dlst-isEmpty dl = SOME false))
 #         to the 2nd disjunct
@@ -337,47 +337,47 @@ assert* lst-dlst-equiv-def := (l equiv dl <==>
 #
 #(Failed to unify the sorts (DLst 'T27283) and (Lst 'T27283).).
 
-define empty-equiv-lemma :=
-  (forall l dl . ((isEmpty l & dlst-isEmpty dl = SOME true) ==> l equiv dl))
+define empty-Equiv-lemma :=
+  (forall l dl . ((isEmpty l & dlst-isEmpty dl = SOME true) ==> l Equiv dl))
 
-conclude empty-equiv-lemma
+conclude empty-Equiv-lemma
   pick-any l dl
     (!chain [
-          (l equiv dl)
-      <== (isEmpty l & dlst-isEmpty dl = SOME true) [lst-dlst-equiv-def]])
+          (l Equiv dl)
+      <== (isEmpty l & dlst-isEmpty dl = SOME true) [lst-dlst-Equiv-def]])
 
-define empty-equiv-alive :=
-  (forall le . (alive le) ==> (empty equiv (dempty le)))
+define empty-Equiv-alive :=
+  (forall le . (alive le) ==> (empty Equiv (dempty le)))
     
-conclude empty-equiv-alive
+conclude empty-Equiv-alive
   pick-any le
     let {l:(Lst 'S)   := empty;     
          dl:(DLst 'S) := (dempty le)}
   (!chain [
-        (l equiv dl)
-    <==	((isEmpty l) & (dlst-isEmpty dl = SOME true))  [empty-equiv-lemma]
+        (l Equiv dl)
+    <==	((isEmpty l) & (dlst-isEmpty dl = SOME true))  [empty-Equiv-lemma]
     <==	(true & dlst-isEmpty dl = SOME true)           [isEmpty-emptyList]
     <==	(dlst-isEmpty dl = SOME true)                  [augment]
     <== (alive le)                             [dlst-isEmpty-true-alive]])
 
 define empty-no-local-failure :=
-  (empty equiv (dempty localhost))
+  (empty Equiv (dempty localhost))
 
 conclude empty-no-local-failure
   (!chain-> [     (alive localhost)
-	      ==> (empty equiv (dempty localhost))    [empty-equiv-alive]])
+	      ==> (empty Equiv (dempty localhost))    [empty-Equiv-alive]])
 
 #cvarela: Athena "bug" / chain 'feature':
 # conclude empty-no-local-failure
 #   let {l:(Lst 'S)   := empty;     
 #        dl:(DLst 'S) := (dempty localhost);
 #        1st          := (!chain-> [true ==> (isEmpty l) [isEmpty-true-axiom]])}
-#   (!chain<- [   (l equiv dl)
+#   (!chain<- [   (l Equiv dl)
 #   	    <==	(1st & (dlst-isEmpty (dempty localhost) = SOME true))
-#   	                                                  [empty-equiv-lemma]
+#   	                                                  [empty-Equiv-lemma]
 # # cvarela: why does following justification not work here,
 # #          though it works for "no-local-failures"!
-# #  	                                                  [lst-dlst-equiv-def]
+# #  	                                                  [lst-dlst-Equiv-def]
 #   	    <==	(dlst-isEmpty (dempty localhost) = SOME true)  [augment]
 #   	    <== (alive localhost)                         [dlst-isEmpty-true-alive]
 #   	    <== true [aliveLocal]])
@@ -385,9 +385,9 @@ conclude empty-no-local-failure
 # conclude empty-no-local-failure
 #   let {_ := (!chain-> [(empty = empty) ==> (isEmpty empty) [isEmpty-axiom]])}
 #   (!chain<- [
-#         (empty equiv (dempty localhost))
+#         (empty Equiv (dempty localhost))
 #     <==	(isEmpty empty & (dlst-isEmpty (dempty localhost) = SOME true))
-#                                                            [empty-equiv-lemma]
+#                                                            [empty-Equiv-lemma]
 #     <==	(dlst-isEmpty (dempty localhost) = SOME true)              [augment]
 #     <== (alive localhost)                           [dlst-isEmpty-true-alive]])
 #
@@ -397,30 +397,30 @@ conclude empty-no-local-failure
 #        dl:(DLst 'S) := (dempty localhost);
 #        _            := (!chain-> [true ==> (isEmpty l) [isEmpty-emptyList]])}
 #   (!chain<- [
-#         (l equiv dl)
-#     <==	((isEmpty l) & (dlst-isEmpty dl = SOME true))  [empty-equiv-lemma]
+#         (l Equiv dl)
+#     <==	((isEmpty l) & (dlst-isEmpty dl = SOME true))  [empty-Equiv-lemma]
 #     <==	(dlst-isEmpty dl = SOME true)                  [augment]
 #     <== (alive localhost)                           [dlst-isEmpty-true-alive]])
 
   
-define lst-dlst-equiv-c1 :=
-  (forall l dl . (l equiv dl & isEmpty l) ==> (dlst-isEmpty dl = SOME true))
+define lst-dlst-Equiv-c1 :=
+  (forall l dl . (l Equiv dl & isEmpty l) ==> (dlst-isEmpty dl = SOME true))
 
-conclude lst-dlst-equiv-c1
+conclude lst-dlst-Equiv-c1
   pick-any l dl
-    assume (l equiv dl & isEmpty l)
+    assume (l Equiv dl & isEmpty l)
       let {empty-not-cases := (!chain<- [
               ((isEmpty l & (dlst-isEmpty dl = SOME true)) |
 	       (getHead dl = SOME head l &
 	        exists t . (getTail dl = SOME t &
-		  	    (tail l) equiv t)))
-          <== (l equiv dl)                                    [lst-dlst-equiv-def]])}
+		  	    (tail l) Equiv t)))
+          <== (l Equiv dl)                                    [lst-dlst-Equiv-def]])}
         (!cases empty-not-cases
 	   assume empty-case := (isEmpty l & (dlst-isEmpty dl = SOME true))
 	     (!right-and empty-case)
 	   assume (getHead dl = SOME head l &
 		   exists t . (getTail dl = SOME t &
-			       (tail l) equiv t))
+			       (tail l) Equiv t))
 	   let {l-empty := (!chain-> [
 	   	        true
 	   	    ==> (isEmpty l)                                     [augment]
@@ -436,82 +436,82 @@ conclude lst-dlst-equiv-c1
 	   	(!from-complements (dlst-isEmpty dl = SOME true)
 	   			   exists-head -exists-head))
 
-define lst-dlst-equiv-c1-ea :=
-  (forall l dl . (l equiv dl & isEmpty l) ==>
+define lst-dlst-Equiv-c1-ea :=
+  (forall l dl . (l Equiv dl & isEmpty l) ==>
 	          exists le . (dl = dempty le & alive le))
 
-conclude lst-dlst-equiv-c1-ea
+conclude lst-dlst-Equiv-c1-ea
   pick-any l dl
     (!chain [ (exists le . (dl = (dempty le) & alive le))
 	  <== (dlst-isEmpty dl = SOME true)               [dlst-isEmpty-c1]
-	  <== (l equiv dl & isEmpty l)                    [lst-dlst-equiv-c1]])
+	  <== (l Equiv dl & isEmpty l)                    [lst-dlst-Equiv-c1]])
 
-define lst-dlst-equiv-c1-e :=
-  (forall l dl . (l equiv dl & isEmpty l) ==> exists le . dl = (dempty le))
+define lst-dlst-Equiv-c1-e :=
+  (forall l dl . (l Equiv dl & isEmpty l) ==> exists le . dl = (dempty le))
 
-conclude lst-dlst-equiv-c1-e
+conclude lst-dlst-Equiv-c1-e
   pick-any l dl
     (!chain [ (exists le . dl = (dempty le))
   	  <== (exists le . (dl = (dempty le) & alive le)) [prop-taut]
-	  <== (l equiv dl & isEmpty l)                    [lst-dlst-equiv-c1-ea]])
+	  <== (l Equiv dl & isEmpty l)                    [lst-dlst-Equiv-c1-ea]])
 
 define (either-case l dl) :=
   ((isEmpty l & (dlst-isEmpty dl = SOME true)) |
    (getHead dl = SOME head l &
     exists t . (getTail dl = SOME t &
-		(tail l) equiv t)))
+		(tail l) Equiv t)))
 
-define lst-dlst-equiv-c2 :=
-  (forall l dl . (l equiv dl & ~ isEmpty l) ==>
+define lst-dlst-Equiv-c2 :=
+  (forall l dl . (l Equiv dl & ~ isEmpty l) ==>
 	          (getHead dl = SOME head l &
-		   exists t . (getTail dl = SOME t & (tail l) equiv t)))
+		   exists t . (getTail dl = SOME t & (tail l) Equiv t)))
 
-conclude lst-dlst-equiv-c2
+conclude lst-dlst-Equiv-c2
   pick-any l dl
-    assume (l equiv dl & ~ isEmpty l)
-      let {1or2 := (!chain-> [    (l equiv dl)
-			      ==> (either-case l dl)   [lst-dlst-equiv-def]]);
+    assume (l Equiv dl & ~ isEmpty l)
+      let {1or2 := (!chain-> [    (l Equiv dl)
+			      ==> (either-case l dl)   [lst-dlst-Equiv-def]]);
 	   not1 := (!chain-> [
                  (~ isEmpty l)
 	     ==> (~ (isEmpty l & (dlst-isEmpty dl = SOME true))) [prop-taut]])}
         (!dsyl 1or2 not1)
 
-define lst-dlst-equiv-c2-h :=
-   (forall l dl . (l equiv dl & ~ isEmpty l) ==> (getHead dl = SOME head l))
+define lst-dlst-Equiv-c2-h :=
+   (forall l dl . (l Equiv dl & ~ isEmpty l) ==> (getHead dl = SOME head l))
 
-conclude lst-dlst-equiv-c2-h
+conclude lst-dlst-Equiv-c2-h
   pick-any l dl
-    assume (l equiv dl & ~ isEmpty l)
-      (!left-and (!fire lst-dlst-equiv-c2 [l dl]))
+    assume (l Equiv dl & ~ isEmpty l)
+      (!left-and (!fire lst-dlst-Equiv-c2 [l dl]))
 
-define lst-dlst-equiv-c2-t :=
-  (forall l dl . (l equiv dl & ~ isEmpty l) ==>
-                  exists t . (getTail dl = SOME t & (tail l) equiv t))
+define lst-dlst-Equiv-c2-t :=
+  (forall l dl . (l Equiv dl & ~ isEmpty l) ==>
+                  exists t . (getTail dl = SOME t & (tail l) Equiv t))
 
-conclude lst-dlst-equiv-c2-t
+conclude lst-dlst-Equiv-c2-t
   pick-any l dl
-    assume (l equiv dl & ~ isEmpty l)
-      (!right-and (!fire lst-dlst-equiv-c2 [l dl]))
+    assume (l Equiv dl & ~ isEmpty l)
+      (!right-and (!fire lst-dlst-Equiv-c2 [l dl]))
 
-define lst-dlst-equiv-c2-ae :=
-  (forall h t1 dl . ((lst h t1) equiv dl)  ==>
+define lst-dlst-Equiv-c2-ae :=
+  (forall h t1 dl . ((lst h t1) Equiv dl)  ==>
 	             (exists lh t2 . (dl = (dlst lh h t2) &
-			             (alive lh) & (t1 equiv t2))))
+			             (alive lh) & (t1 Equiv t2))))
 
-conclude lst-dlst-equiv-c2-ae
+conclude lst-dlst-Equiv-c2-ae
   pick-any h t1 dl
-    assume ((lst h t1) equiv dl)
+    assume ((lst h t1) Equiv dl)
     let { _ := (!chain<- [    (~ isEmpty (lst h t1))
 			  <== true                   [isEmpty-nonEmptyList]]);
 	  dl-ht := (!chain-> [
-	            ((lst h t1) equiv dl)
-	        ==> ((lst h t1) equiv dl & ~ isEmpty (lst h t1))    [augment]
+	            ((lst h t1) Equiv dl)
+	        ==> ((lst h t1) Equiv dl & ~ isEmpty (lst h t1))    [augment]
 		==> (getHead dl = SOME head (lst h t1) &
 		     (exists t2 . (getTail dl = SOME t2 &
-				   (tail (lst h t1)) equiv t2)))
-	                                             [lst-dlst-equiv-c2]
+				   (tail (lst h t1)) Equiv t2)))
+	                                             [lst-dlst-Equiv-c2]
  	        ==> (getHead dl = SOME h &
-		     (exists t2 . (getTail dl = SOME t2 & t1 equiv t2)))
+		     (exists t2 . (getTail dl = SOME t2 & t1 Equiv t2)))
 	                                             [lst-se-axioms]]);
 	   dl-h := (!left-and dl-ht);
 	   dl-t := (!right-and dl-ht)}
@@ -522,44 +522,44 @@ conclude lst-dlst-equiv-c2-ae
 	  pick-witness lh for e-lh dlst-alive-lh
 	    (!chain<- [
  	         (exists lh t2 . (dl = (dlst lh h t2) & (alive lh) &
-			      (t1 equiv t2)))             
+			      (t1 Equiv t2)))             
              <== (dl = (dlst lh h t2) & (alive lh) &
-		  (t1 equiv t2))                     [existence]
-	     <== (dlst-alive-lh & (t1 equiv t2))     [prop-taut]
+		  (t1 Equiv t2))                     [existence]
+	     <== (dlst-alive-lh & (t1 Equiv t2))     [prop-taut]
              <== dlst-alive-lh                       [augment]])
 
-# define lst-dlst-equiv-c3 :=
-#   (forall l dl . ((l equiv dl) &  (getHead dl = SOME head l)) ==> (~ isEmpty l))
+# define lst-dlst-Equiv-c3 :=
+#   (forall l dl . ((l Equiv dl) &  (getHead dl = SOME head l)) ==> (~ isEmpty l))
 
 # cvarela: a more general one
-# define lst-dlst-equiv-c3 :=
+# define lst-dlst-Equiv-c3 :=
 #   (forall dl h . (getHead dl = SOME h ==> 
 #     (dlst-isEmpty dl = SOME false))
 
 # or:
 
-# define lst-dlst-equiv-c3 :=
-#   (forall l dl . ((l equiv dl) &  (getHead dl = SOME head l)) ==> 
+# define lst-dlst-Equiv-c3 :=
+#   (forall l dl . ((l Equiv dl) &  (getHead dl = SOME head l)) ==> 
 #     ((~ isEmpty l) & (dlst-isEmpty dl = SOME false))
 
 # cvarela: subsumed by Lst.hasHead->notEmpty
-# define lst-dlst-equiv-c4 :=
-#   (forall l dl . ((l equiv dl) & exists h . h = head l) ==> (~ isEmpty l))
+# define lst-dlst-Equiv-c4 :=
+#   (forall l dl . ((l Equiv dl) & exists h . h = head l) ==> (~ isEmpty l))
 
 define [dl1 dl2] := [?dl1:(DLst 'S) ?dl2:(DLst 'S)]
 define [dt dt1 dt2] := [?dt:(DLst 'S) ?dt1:(DLst 'S) ?dt2:(DLst 'S)]
 
-define lst-dlst-equiv-equal :=
+define lst-dlst-Equiv-equal :=
   (forall l dl1 dl2 .
-    ((l equiv dl1) & (l equiv dl2)) ==> dl1 = dl2)	
+    ((l Equiv dl1) & (l Equiv dl2)) ==> dl1 = dl2)	
 
-by-induction lst-dlst-equiv-equal{
+by-induction lst-dlst-Equiv-equal{
   (l as empty) =>
     pick-any dl1:(DLst 'S) dl2:(DLst 'S)
-      assume ((l equiv dl1) & (l equiv dl2))
+      assume ((l Equiv dl1) & (l Equiv dl2))
         let { dempty-m := (method (dl) (!chain<- [
 	        (exists le . dl = (dempty le))
-		<== (l equiv dl & isEmpty l)       [lst-dlst-equiv-c1-e]
+		<== (l Equiv dl & isEmpty l)       [lst-dlst-Equiv-c1-e]
 		<== (isEmpty l)                    [augment]
 		<== (l = empty)                    [isEmpty-axiom]]));
 	      dempty-le1 := (!dempty-m dl1);
@@ -571,36 +571,36 @@ by-induction lst-dlst-equiv-equal{
 		         = dl2                       [de-le2]])
 | (l as (lst h t)) => 
     let {ind-hyp :=
-      (forall dl1 dl2 . ((t equiv dl1) & (t equiv dl2)) ==> dl1 = dl2)}
+      (forall dl1 dl2 . ((t Equiv dl1) & (t Equiv dl2)) ==> dl1 = dl2)}
     pick-any dl1:(DLst 'S) dl2:(DLst 'S)
-      assume ((l equiv dl1) & (l equiv dl2))
+      assume ((l Equiv dl1) & (l Equiv dl2))
         let { dlst-m := (method (dl) (!chain<- [
                 (getHead dl = SOME h &
-		 exists dt . (getTail dl = SOME dt & t equiv dt))
+		 exists dt . (getTail dl = SOME dt & t Equiv dt))
                 <== (getHead dl = SOME head l &
 		     exists dt . (getTail dl = SOME dt &
-			          (tail l) equiv dt)) [lst-se-axioms]
-		<== (l equiv dl & ~ isEmpty l)       [lst-dlst-equiv-c2]
+			          (tail l) Equiv dt)) [lst-se-axioms]
+		<== (l Equiv dl & ~ isEmpty l)       [lst-dlst-Equiv-c2]
 		<== (~ isEmpty l)                    [augment]
 		<== (~ l = empty)                    [isEmpty-axiom]]));
 	      dlst-le1 := (!dlst-m dl1);
 	      dlst-le2 := (!dlst-m dl2)}
-	  pick-witness dt1 for (!right-and dlst-le1) tail-equiv-dt1
-	    pick-witness dt2 for (!right-and dlst-le2) tail-equiv-dt2
+	  pick-witness dt1 for (!right-and dlst-le1) tail-Equiv-dt1
+	    pick-witness dt2 for (!right-and dlst-le2) tail-Equiv-dt2
   	      let { dl1-head := (!left-and dlst-le1);
-		    dl1-tail := (!left-and tail-equiv-dt1);
-                    t-equiv-dt1 := (!right-and tail-equiv-dt1);
+		    dl1-tail := (!left-and tail-Equiv-dt1);
+                    t-Equiv-dt1 := (!right-and tail-Equiv-dt1);
 		    dl1-dlst := (!chain<- [
 		           (exists lh1 . (dl1 = (dlst lh1 h dt1) & alive lh1))
 		       <== (dl1-head & dl1-tail)     [head-tail-some-dlst]]);
 		    dl2-head := (!left-and dlst-le2);
-		    dl2-tail := (!left-and tail-equiv-dt2);
-                    t-equiv-dt2 := (!right-and tail-equiv-dt2);
+		    dl2-tail := (!left-and tail-Equiv-dt2);
+                    t-Equiv-dt2 := (!right-and tail-Equiv-dt2);
 		    dl2-dlst := (!chain<- [
 		       (exists lh2 . (dl2 = (dlst lh2 h dt2) & alive lh2))
 		       <== (dl2-head & dl2-tail) [head-tail-some-dlst]]);
 		    dt1=dt2 := (!chain-> [ 
-		           (t-equiv-dt1 & t-equiv-dt2)
+		           (t-Equiv-dt1 & t-Equiv-dt2)
 		       ==> (dt1 = dt2)                       [ind-hyp]])}
 	      pick-witness lh1 for dl1-dlst dl1-def
 	        pick-witness lh2 for dl2-dlst dl2-def
@@ -610,23 +610,23 @@ by-induction lst-dlst-equiv-equal{
 		               = dl2                       [dl2-def]])
 # | (l as (lst h t)) => 
 #     let {ind-hyp :=
-#       (forall dl1 dl2 . ((t equiv dl1) & (t equiv dl2)) ==> dl1 = dl2)}
+#       (forall dl1 dl2 . ((t Equiv dl1) & (t Equiv dl2)) ==> dl1 = dl2)}
 #     pick-any dl1:(DLst 'S) dl2:(DLst 'S)
-#       assume ((l equiv dl1) & (l equiv dl2))
+#       assume ((l Equiv dl1) & (l Equiv dl2))
 #         let { dlst-m := (method (dl) (!chain<- [
 #                 (getHead dl = SOME head l &
 # 		 exists dt . (getTail dl = SOME dt &
-# 			     (tail l) equiv dt))
-# 		<== (l equiv dl & ~ isEmpty l)       [lst-dlst-equiv-c2]
+# 			     (tail l) Equiv dt))
+# 		<== (l Equiv dl & ~ isEmpty l)       [lst-dlst-Equiv-c2]
 # 		<== (~ isEmpty l)                    [augment]
 # 		<== (~ l = empty)                    [isEmpty-axiom]]));
 # 	      dlst-le1 := (!dlst-m dl1);
 # 	      dlst-le2 := (!dlst-m dl2)}
-# 	  pick-witness dt1 for (!right-and dlst-le1) tail-equiv-dt1
-# 	    pick-witness dt2 for (!right-and dlst-le2) tail-equiv-dt2
+# 	  pick-witness dt1 for (!right-and dlst-le1) tail-Equiv-dt1
+# 	    pick-witness dt2 for (!right-and dlst-le2) tail-Equiv-dt2
 #   	      let { dl1-head := (!left-and dlst-le1);
-# 		    dl1-tail := (!left-and tail-equiv-dt1);
-#                     t-equiv-dt1 := (!right-and tail-equiv-dt1);
+# 		    dl1-tail := (!left-and tail-Equiv-dt1);
+#                     t-Equiv-dt1 := (!right-and tail-Equiv-dt1);
 # 		    dl1-dlst := (!chain<- [
 # 		           (exists lh1 . (dl1 = (dlst lh1 h dt1) & alive lh1))
 # 		       <== (exists lh1 .
@@ -634,8 +634,8 @@ by-induction lst-dlst-equiv-equal{
 # 		                                     [lst-head]
 # 		       <== (dl1-head & dl1-tail)     [head-tail-some-dlst]]);
 # 		    dl2-head := (!left-and dlst-le2);
-# 		    dl2-tail := (!left-and tail-equiv-dt2);
-#                     t-equiv-dt2 := (!right-and tail-equiv-dt2);
+# 		    dl2-tail := (!left-and tail-Equiv-dt2);
+#                     t-Equiv-dt2 := (!right-and tail-Equiv-dt2);
 # 		    dl2-dlst := (!chain<- [
 # 		       (exists lh2 . (dl2 = (dlst lh2 h dt2) & alive lh2))
 # 		       <== (exists lh2 .
@@ -643,8 +643,8 @@ by-induction lst-dlst-equiv-equal{
 # 		                                     [lst-head]
 # 		       <== (dl2-head & dl2-tail) [head-tail-some-dlst]]);
 # 		    dt1=dt2 := (!chain-> [ 
-# 		           (t-equiv-dt1 & t-equiv-dt2)
-# 		       ==> ((t equiv dt1) & (t equiv dt2))   [lst-tail]
+# 		           (t-Equiv-dt1 & t-Equiv-dt2)
+# 		       ==> ((t Equiv dt1) & (t Equiv dt2))   [lst-tail]
 # 		       ==> (dt1 = dt2)                       [ind-hyp]])}
 # 	      pick-witness lh1 for dl1-dlst dl1-def
 # 	        pick-witness lh2 for dl2-dlst dl2-def
@@ -658,12 +658,12 @@ define [t1 t2] := [?t1:(Lst 'S) ?t2:(DLst 'S)]
 
 define no-local-failures :=
   (forall h t1 t2 .
-     (t1 equiv t2) ==>
-       ((lst h t1) equiv (dlst localhost h t2)))
+     (t1 Equiv t2) ==>
+       ((lst h t1) Equiv (dlst localhost h t2)))
 
 conclude no-local-failures
   pick-any h t1 t2
-    assume (t1 equiv t2)
+    assume (t1 Equiv t2)
       let {1st := (!chain<- [    ((getHead (dlst localhost h t2))
 			        = (SOME (head (lst h t1))))
 			     <== ((getHead (dlst localhost h t2))
@@ -672,15 +672,15 @@ conclude no-local-failures
            2A  := (!chain<- [    ((getTail (dlst localhost h t2))
 				= (SOME t2))              
 			     <== (alive localhost)    [dlst-tail-alive]]);
-	   2B  := (!chain<- [    (tail (lst h t1) equiv t2)
-			     <== (t1 equiv t2)        [lst-tail]]);
+	   2B  := (!chain<- [    (tail (lst h t1) Equiv t2)
+			     <== (t1 Equiv t2)        [lst-tail]]);
            2AB := (!both 2A 2B);
 	   2nd := (!egen
 		   (exists t . ((getTail (dlst localhost h t2)) = (SOME t)
-			        & (tail (lst h t1) equiv t))) t2)}
+			        & (tail (lst h t1) Equiv t))) t2)}
       (!chain-> [     (1st & 2nd)
-		  ==> ((lst h t1) equiv (dlst localhost h t2))
- 		                                      [lst-dlst-equiv-def]])
+		  ==> ((lst h t1) Equiv (dlst localhost h t2))
+ 		                                      [lst-dlst-Equiv-def]])
 
 
 # we lift 'alive' predicate to distributed lists:
@@ -696,13 +696,13 @@ define alive-dlst-def := [alive-dlst-empty alive-dlst-dlst]
   
 # an alive distributed list is equivalent to its equal (non-distributed) list.
 define lst-dlst-no-failures :=
-  (forall l dl . ((l equal dl) & (alive-dlst dl)) ==> (l equiv dl))
+  (forall l dl . ((l equal dl) & (alive-dlst dl)) ==> (l Equiv dl))
 #cvarela: if and only if? Yes!  Local lists never fail.
 #         exercise: prove <== direction.
 
 by-induction lst-dlst-no-failures {
 (l as empty) =>
-  conclude (forall dl . ((l equal dl) & (alive-dlst dl)) ==> (l equiv dl))
+  conclude (forall dl . ((l equal dl) & (alive-dlst dl)) ==> (l Equiv dl))
     pick-any dl
       assume ((l equal dl) & (alive-dlst dl))
         let {dl=dempty := (!fire dlempty-lemma [dl])}
@@ -714,22 +714,22 @@ by-induction lst-dlst-no-failures {
 		   <== (alive-dlst (dempty le))  [alive-dlst-empty]
 		   <== (alive-dlst dl)           [dl=dempty-le]])}
 	  (!chain<- [
-	        (l equiv dl)
+	        (l Equiv dl)
 	    <== (isEmpty l &
-		 dlst-isEmpty dl = SOME true)        [empty-equiv-lemma]
+		 dlst-isEmpty dl = SOME true)        [empty-Equiv-lemma]
 	    <== (isEmpty empty &
 		 dlst-isEmpty (dempty le) = SOME true) [dl=dempty-le]
 	    <== (isEmpty empty)                      [augment]
 	    <== true                                 [isEmpty-emptyList]])
 | (l as (lst h1 t1)) =>
     let {ind-hyp :=
-	   (forall dl . ((t1 equal dl) & (alive-dlst dl)) ==> (t1 equiv dl))}
+	   (forall dl . ((t1 equal dl) & (alive-dlst dl)) ==> (t1 Equiv dl))}
     structure-cases
-      (forall dl . ((l equal dl) & (alive-dlst dl)) ==> (l equiv dl)) {
+      (forall dl . ((l equal dl) & (alive-dlst dl)) ==> (l Equiv dl)) {
     (dl as (dempty le)) =>
       assume ((l equal dl) & (alive-dlst dl))
 	let {-eq := (!instance lst-dlst-equal-lst-empty [h1 le t1])}
-	(!from-complements (l equiv dl) -eq (l equal dl))
+	(!from-complements (l Equiv dl) -eq (l equal dl))
   | (dl as (dlst lh h2 t2)) =>
       assume ((l equal dl) & (alive-dlst dl))
         let {
@@ -746,44 +746,44 @@ by-induction lst-dlst-no-failures {
 		   <== (alive lh)               [dlst-head-alive]]);
 	  2A  := (!chain<- [ (getTail dl = SOME t2)              
 			 <== (alive lh)         [dlst-tail-alive]]);
-	  2B  := (!chain<- [ (tail l equiv t2)
-			 <== (t1 equiv t2)      [lst-tail]
+	  2B  := (!chain<- [ (tail l Equiv t2)
+			 <== (t1 Equiv t2)      [lst-tail]
 			 <== ((t1 equal t2) &
 			      (alive-dlst t2))  [ind-hyp]
 			 <== (t1 equal t2)      [augment]
 			 <== (l equal dl)	[lst-dlst-equal-lst-lst]]);
           2AB := (!both 2A 2B);
 	  2nd := (!egen (exists t . (getTail dl = SOME t &
-				     (tail l equiv t)))
+				     (tail l Equiv t)))
 			t2)}
           (!chain-> [ (1st & 2nd)
-		  ==> (l equiv dl)               [lst-dlst-equiv-def]])}}
+		  ==> (l Equiv dl)               [lst-dlst-Equiv-def]])}}
 
-define canonical-equiv :=
-    (forall dl . (alive-dlst dl) ==> ((canonical dl) equiv dl))
+define canonical-Equiv :=
+    (forall dl . (alive-dlst dl) ==> ((canonical dl) Equiv dl))
 
-conclude canonical-equiv
+conclude canonical-Equiv
 pick-any dl
   assume (alive-dlst dl)
     (!chain-> [
 	   true
        ==> ((canonical dl) equal dl)                  [canonical-equal]
        ==> (((canonical dl) equal dl) & (alive-dlst dl))      [augment]
-       ==> ((canonical dl) equiv dl)             [lst-dlst-no-failures]])
+       ==> ((canonical dl) Equiv dl)             [lst-dlst-no-failures]])
 
 
-define lst-dlst-equiv-alive :=
-  (forall l dl . (l equiv dl ==> alive-dlst dl))
+define lst-dlst-Equiv-alive :=
+  (forall l dl . (l Equiv dl ==> alive-dlst dl))
 
-define lst-dlst-equiv-alive-e :=
-  (forall l . (l equiv (dempty le) ==> alive le))
+define lst-dlst-Equiv-alive-e :=
+  (forall l . (l Equiv (dempty le) ==> alive le))
 
-define lst-dlst-equiv-alive-ne :=
-  (forall l lh h t . (l equiv (dlst lh h t) ==> (alive lh & alive-dlst t)))
+define lst-dlst-Equiv-alive-ne :=
+  (forall l lh h t . (l Equiv (dlst lh h t) ==> (alive lh & alive-dlst t)))
       
 # equivalence between two distributed lists
 # when are two distributed lists behaviorally equivalent
-declare dlst-equiv: (S) [(DLst S) (DLst S)] -> Boolean
+declare dlst-Equiv: (S) [(DLst S) (DLst S)] -> Boolean
 
 define [t1 t2 dl1 dl2] := [?t1:(DLst 'S) ?t2:(DLst 'S)
 			   ?dl1:(DLst 'S) ?dl2:(DLst 'S)]
@@ -791,8 +791,8 @@ define [t1 t2 dl1 dl2] := [?t1:(DLst 'S) ?t2:(DLst 'S)
 # A behavioral equivalence that considers two distributed lists
 #  equivalent if they are equivalent to their canonical local
 #  (non-failing) list
-assert* dlst-equiv-def :=
-  (dl1 dlst-equiv dl2 <==> ((dlst-isEmpty dl1 = SOME true &
+assert* dlst-Equiv-def :=
+  (dl1 dlst-Equiv dl2 <==> ((dlst-isEmpty dl1 = SOME true &
 			     dlst-isEmpty dl2 = SOME true) |
 			    (dlst-isEmpty dl1 = SOME false &
 			     dlst-isEmpty dl2 = SOME false &
@@ -802,23 +802,23 @@ assert* dlst-equiv-def :=
 				h1 = h2 &
 				getTail dl1 = SOME t1 &
 				getTail dl2 = SOME t2 &
-				t1 dlst-equiv t2))))
+				t1 dlst-Equiv t2))))
 # cvarela: exercise: the first disjunct implies 
 #             dl1 = (dempty le)
 #          which implies (getHead dl1) = NONE & (getTail dl1) = NONE.
 
-define dlst-empty-equiv-lemma :=
+define dlst-empty-Equiv-lemma :=
   (forall dl1 dl2 . ((dlst-isEmpty dl1 = SOME true) &
-		     (dlst-isEmpty dl2 = SOME true) ==> dl1 dlst-equiv dl2))
+		     (dlst-isEmpty dl2 = SOME true) ==> dl1 dlst-Equiv dl2))
 
-conclude dlst-empty-equiv-lemma
+conclude dlst-empty-Equiv-lemma
   pick-any dl1 dl2
-    (!chain [     (dl1 dlst-equiv dl2)
+    (!chain [     (dl1 dlst-Equiv dl2)
 	      <== ((dlst-isEmpty dl1 = SOME true) &
-		   (dlst-isEmpty dl2 = SOME true))      [dlst-equiv-def]])
+		   (dlst-isEmpty dl2 = SOME true))      [dlst-Equiv-def]])
 
 # cvarela:  following could be an exercise
-define dlst-non-empty-equiv-lemma :=
+define dlst-non-empty-Equiv-lemma :=
   (forall dl1 dl2 . ((dlst-isEmpty dl1 = (SOME false) &
 		      dlst-isEmpty dl2 = (SOME false) &
 		      (exists h1 h2 t1 t2 .
@@ -827,12 +827,12 @@ define dlst-non-empty-equiv-lemma :=
 			  (h1 = h2) &
 			  (getTail dl1) = SOME t1 &
 			  (getTail dl2) = SOME t2 &
-			  t1 dlst-equiv t2))) ==> dl1 dlst-equiv dl2))
+			  t1 dlst-Equiv t2))) ==> dl1 dlst-Equiv dl2))
 
-conclude dlst-non-empty-equiv-lemma
+conclude dlst-non-empty-Equiv-lemma
   pick-any dl1:(DLst 'S) dl2:(DLst 'S)
     (!chain [
-          (dl1 dlst-equiv dl2)
+          (dl1 dlst-Equiv dl2)
       <== (dlst-isEmpty dl1 = (SOME false) &
 	   dlst-isEmpty dl2 = (SOME false) &
 	   (exists h1 h2 t1 t2 .
@@ -841,15 +841,15 @@ conclude dlst-non-empty-equiv-lemma
 	       (h1 = h2) &
 	       (getTail dl1) = SOME t1 &
 	       (getTail dl2) = SOME t2 &
-	       t1 dlst-equiv t2))) [dlst-equiv-def]])
+	       t1 dlst-Equiv t2))) [dlst-Equiv-def]])
 
 # two equal and alive distributed lists are behaviorally equivalent
-define dlst-equiv-no-failures :=
+define dlst-Equiv-no-failures :=
   (forall dl1 dl2 . (dl1 = dl2) & (alive-dlst dl1) & (alive-dlst dl2)
-                    ==> dl1 dlst-equiv dl2)
+                    ==> dl1 dlst-Equiv dl2)
 
 # cvarela: why does chain-> fail in last step? is it a sort problem?
-# define (dlst-equiv-empty-empty dl1:(DLst 'S) dl2:(DLst 'S)) :=
+# define (dlst-Equiv-empty-empty dl1:(DLst 'S) dl2:(DLst 'S)) :=
 #   match [dl1 dl2] {
 #     [(dempty le1) (dempty le2)] =>
 #       assume ((dl1 = dl2) & (alive-dlst dl1) & (alive-dlst dl2))
@@ -861,12 +861,12 @@ define dlst-equiv-no-failures :=
 # 		   ==> (alive-le1 & alive-le2)         [augment]
 # 		   ==> (dlst-isEmpty dl1 = SOME true &
 # 			dlst-isEmpty dl2 = SOME true)  [dlst-isEmpty-axioms]
-# 		   ==> (dl1 dlst-equiv dl2)            [dlst-empty-equiv-lemma]])
+# 		   ==> (dl1 dlst-Equiv dl2)            [dlst-empty-Equiv-lemma]])
 #   }
 
 # we divide the proof in four cases
 # Case 1: dl1 and dl2 empty
-define (dlst-equiv-empty-empty dl1 dl2) :=
+define (dlst-Equiv-empty-empty dl1 dl2) :=
   match [dl1 dl2] {
     [(dempty le1) (dempty le2)] =>
       assume ((dl1 = dl2) & (alive-dlst dl1) & (alive-dlst dl2))
@@ -879,25 +879,25 @@ define (dlst-equiv-empty-empty dl1 dl2) :=
 	         (alive-le1 & alive-le2)
 	     ==> (dlst-isEmpty dl1 = SOME true &
 		  dlst-isEmpty dl2 = SOME true)   [dlst-isEmpty-axioms]])}
-	(!fire dlst-empty-equiv-lemma [dl1 dl2])}
+	(!fire dlst-empty-Equiv-lemma [dl1 dl2])}
 
 # Case 2: dl1 empty and dl2 non-empty
-define (dlst-equiv-empty-lst dl1 dl2) :=
+define (dlst-Equiv-empty-lst dl1 dl2) :=
   match [dl1 dl2] {
     [(dempty le1) (dlst lh2 h2 t2)] =>
        assume ((dl1 = dl2) & (alive-dlst dl1) & (alive-dlst dl2))
          let {-eq := (!instance dlst-no-conf [le1 lh2 h2 t2])}
-  	   (!from-complements (dl1 dlst-equiv dl2) -eq (dl1 = dl2))}
+  	   (!from-complements (dl1 dlst-Equiv dl2) -eq (dl1 = dl2))}
 
 # Case 3: dl1 non-empty and dl2 empty
-define (dlst-equiv-lst-empty dl1 dl2) :=
+define (dlst-Equiv-lst-empty dl1 dl2) :=
   match [dl1 dl2] {
     [(dlst lh1 h1 t1) (dempty le2)] =>
        assume ((dl1 = dl2) & (alive-dlst dl1) & (alive-dlst dl2))
          let {-eq := (!chain<- [    (~ dl1 = dl2)
 				<== (~ dl2 = dl1)  [sym]
 				<== true           [dlst-no-conf]])}
-  	   (!from-complements (dl1 dlst-equiv dl2) -eq (dl1 = dl2))}
+  	   (!from-complements (dl1 dlst-Equiv dl2) -eq (dl1 = dl2))}
 
 #cvarela: move to some generic library
 define (both* lst) :=
@@ -906,16 +906,16 @@ define (both* lst) :=
   | (list-of h rest) => (!both h (!both* rest))}
 
 # Case 4: dl1 and dl2 non-empty
-define (dlst-equiv-lst-lst dl1 dl2) :=
+define (dlst-Equiv-lst-lst dl1 dl2) :=
   conclude ((dl1 = dl2) & (alive-dlst dl1) & (alive-dlst dl2)
-	    ==> dl1 dlst-equiv dl2)
+	    ==> dl1 dlst-Equiv dl2)
   match [dl1 dl2] {
     [(dlst lh1 h t) (dlst lh2 h' t')] =>
       assume ((dl1 = dl2) & (alive-dlst dl1) & (alive-dlst dl2))
         let {
           ind-hyp :=  # in assumption base, from method application context
 	    (forall dl . ((t = dl) & (alive-dlst t) & (alive-dlst dl)
-			  ==> t dlst-equiv dl));
+			  ==> t dlst-Equiv dl));
           alive-l1 := (!chain<- [ ((alive lh1) & (alive-dlst t))     
 			      <== (alive-dlst dl1)   [alive-dlst-def]]);
 	  alive-l2 := (!chain<- [ ((alive lh2) & (alive-dlst t'))     
@@ -934,7 +934,7 @@ define (dlst-equiv-lst-lst dl1 dl2) :=
 			<== (alive lh1)             [dlst-tail-alive]]);
 	  2E := (!chain<- [ ((getTail dl2) = (SOME t'))
 			<== (alive lh2)             [dlst-tail-alive]]);
-	  2F := (!chain<- [ (t dlst-equiv t')
+	  2F := (!chain<- [ (t dlst-Equiv t')
 			<== ((t = t') &
 			     (alive-dlst t) &
 			     (alive-dlst t'))       [ind-hyp]
@@ -947,32 +947,32 @@ define (dlst-equiv-lst-lst dl1 dl2) :=
 			    (h1 = h2) &
 			    (getTail dl1) = SOME t1 &
 			    (getTail dl2) = SOME t2 &
-			    t1 dlst-equiv t2))
+			    t1 dlst-Equiv t2))
 			 [h h' t t'])} 
 #cvarela: must use h1 h2 t1 t2 as existential quantifier variables;
 #          which requires using other variable names: h,t,h',t' as
 #          witness variables; otherwise, alpha renaming causes
 #          modus-ponens premise matching to fail.
         (!chain-> [ (1A & 1B & 2nd)
-		==> (dl1 dlst-equiv dl2)            [dlst-equiv-def]])}
+		==> (dl1 dlst-Equiv dl2)            [dlst-Equiv-def]])}
 
-by-induction dlst-equiv-no-failures{
+by-induction dlst-Equiv-no-failures{
   (dl1 as (dempty le1)) =>  				    
     structure-cases
       (forall dl2 . (dl1 = dl2) & (alive-dlst dl1) & (alive-dlst dl2)
-	             ==> dl1 dlst-equiv dl2) {
-      (dl2 as (dempty le2))     => (!dlst-equiv-empty-empty dl1 dl2)
-    | (dl2 as (dlst lh2 h2 t2)) => (!dlst-equiv-empty-lst dl1 dl2)
+	             ==> dl1 dlst-Equiv dl2) {
+      (dl2 as (dempty le2))     => (!dlst-Equiv-empty-empty dl1 dl2)
+    | (dl2 as (dlst lh2 h2 t2)) => (!dlst-Equiv-empty-lst dl1 dl2)
     }
 | (dl1 as (dlst lh1 h1 t1)) =>
     # let {ind-hyp := (forall dl2 .
     # 		       (t1 = dl2) & (alive-dlst t1) & (alive-dlst dl2)
-    # 		       ==> t1 dlst-equiv dl2)}
+    # 		       ==> t1 dlst-Equiv dl2)}
     structure-cases
       (forall dl2 . (dl1 = dl2) & (alive-dlst dl1) & (alive-dlst dl2)
-                    ==> dl1 dlst-equiv dl2) {
-      (dl2 as (dempty le2))     => (!dlst-equiv-lst-empty dl1 dl2)
-    | (dl2 as (dlst lh2 h2 t2)) => (!dlst-equiv-lst-lst dl1 dl2)
+                    ==> dl1 dlst-Equiv dl2) {
+      (dl2 as (dempty le2))     => (!dlst-Equiv-lst-empty dl1 dl2)
+    | (dl2 as (dlst lh2 h2 t2)) => (!dlst-Equiv-lst-lst dl1 dl2)
     }
 }
 
@@ -980,28 +980,28 @@ by-induction dlst-equiv-no-failures{
 # A more general (but less useful?) behavioral equivalence can be
 # defined that considers two dlists "equivalent" if they observe the
 # same failure behavior:
-declare dlst-equiv'': (S) [(DLst S) (DLst S)] -> Boolean
-assert* dlst-equiv''-def :=
-  (dl1 dlst-equiv'' dl2 <==> (dlst-isEmpty dl1 = dlst-isEmpty dl2 &
+declare dlst-Equiv'': (S) [(DLst S) (DLst S)] -> Boolean
+assert* dlst-Equiv''-def :=
+  (dl1 dlst-Equiv'' dl2 <==> (dlst-isEmpty dl1 = dlst-isEmpty dl2 &
 			      (getHead dl1) = (getHead dl2) &
 			      (((getTail dl1) = SOME t1 &
 				(getTail dl2) = SOME t2 &
-				t1 dlst-equiv'' t2) |
+				t1 dlst-Equiv'' t2) |
 			       ((getTail dl1) = NONE &
 				(getTail dl2) = NONE))))
 
-# cvarela: dl1 dlst-equiv'' dl2 ==> dl1 dlst-equiv dl2, but not <==.
-#          for example failing-dl1 dlst-equiv'' failing-dl2
-#          but not     failing-dl1 dlst-equiv   failing-dl2
+# cvarela: dl1 dlst-Equiv'' dl2 ==> dl1 dlst-Equiv dl2, but not <==.
+#          for example failing-dl1 dlst-Equiv'' failing-dl2
+#          but not     failing-dl1 dlst-Equiv   failing-dl2
 # under no failures, the two equivalences collapse.
 
 # cvarela: we can also define an equivalence between two distributed
-# lists less operationally, dl1 equiv'' dl2 iff there exists a
-# (canonical) list l s.t. l equiv dl1 and l equiv dl2.  These
-# equivalences equiv and equiv'' should be the same... prove it?!
-declare dlst-equiv': (S) [(DLst S) (DLst S)] -> Boolean
-assert* dlst-equiv'-def :=
-  (dl1 dlst-equiv' dl2 <==> exists l . (l equiv dl1) & (l equiv dl2))
+# lists less operationally, dl1 Equiv'' dl2 iff there exists a
+# (canonical) list l s.t. l Equiv dl1 and l Equiv dl2.  These
+# equivalences Equiv and Equiv'' should be the same... prove it?!
+declare dlst-Equiv': (S) [(DLst S) (DLst S)] -> Boolean
+assert* dlst-Equiv'-def :=
+  (dl1 dlst-Equiv' dl2 <==> exists l . (l Equiv dl1) & (l Equiv dl2))
 
 } # close module DLst
 
