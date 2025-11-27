@@ -1,11 +1,12 @@
 load "lst-in"
 load "lst-toset"
 load "dlist.ath"
-load "function.ath"
-open Function
+# load "function.ath"
+# open Function
 module DL_L_S {
     define [f]     := [?f:(fn 'S N)]
-    define [lsts]  := [?lsts:(Lst 'S)]
+    define [sets]  := [?sets:(Set.Set 'S)]
+    define [lsts tail_s]  := [?lsts:(Lst 'S) ?tail_s:(Lst 'S)]
     define [s htv v head]          := [?s:'S ?htv:'S ?v:'S ?head:(Lst 'S)]
     define [n rv rv0 bucket]  := [?n:N ?rv:N ?rv0:N ?bucket:N]
     define [dlls tail_dlls o_dlls]  := 
@@ -14,8 +15,8 @@ module DL_L_S {
            [?l:Location ?l0:Location ?lh:Location ?htl:Location ?htl0:Location
             ?ll:(Lst Location) ?tail_l:(Lst Location) ?tail_l0:(Lst Location)]
 
-    ### initDPrList
     ### ----------------------------------------------------------------------------------
+    ### initDPrList
     ### Purpose:
     ###     Initialize a distributed list of buckets, one bucket per input location. Each
     ###     bucket is initialize as an empty list. You might notice that f is never use,
@@ -37,14 +38,39 @@ module DL_L_S {
             (initDPrList f htl0 (lst l tail_l)) = (dlst l empty (initDPrList f htl0 tail_l))
         ])
 
-    # TODO: need a proof for this.. should be easy
+    # TODO: need a proof for this.. it seems to be easy
     assert initDPrList_characterization :=
     (forall f htl lsts . (
                           ((initDPrList f htl lsts) = (dempty htl)) 
                         | (exists l tail_l . (initDPrList f htl lsts) = (dlst l empty (initDPrList f htl tail_l) ))))
-    
-    ### in
+
     ### -----------------------------------------------
+    ### insertDPrList
+    ### Purpose:
+    ###     Insert a value `v` into the bucket located at index `n` of a distributed list
+    ###     of buckets. The function assumes that `n` is strictly smaller than the number
+    ###     of buckets, and it performs a single-bucket insertion TODO: it should add the 
+    ###     corresponding replicas
+    ###
+    ### Parameters:
+    ###     n::N                 : natural number indicating which bucket to update
+    ###     v::N                 : value of type S to be inserted
+    ###     dlls::(DLst (Lst S)) : distributed list representing buckets of values
+    ###
+    ### Returns:
+    ###     A new distributed list where the bucket at position `n` has been updated by
+    ###     prepending the value `v` to its local list of elements.
+    declare insertDPrList: (S) [N S (DLst (Lst S))] -> (DLst (Lst S))
+    assert  insertDPrList_axioms := (fun [
+            (insertDPrList zero v (dlst lh (lst s tail_s) tail_dlls)) =
+                (dlst lh (lst v (lst s tail_s)) tail_dlls)
+
+            (insertDPrList (S n) v (dlst lh lsts tail_dlls)) =
+                (dlst lh lsts (insertDPrList n v tail_dlls))
+        ])
+    
+    ### -----------------------------------------------
+    ### in
     ### Purpose:
     ###     Replication aware membership predicate for distributed bucket lists.
     ###     Determines whether a value `v` is stored in the bucket indexed by `bucket`,
@@ -191,7 +217,72 @@ module DL_L_S {
                 (~ in bucket rv (initDPrList f htl lsts) (initDPrList f htl lsts) v )
                 (!uspec* in_init_false_aux [bucket rv lsts f v htl])
             )
+    
+    ### ---------------------------------------------------------------
+    ### available_key
+    ### Purpose:
+    ###     Determine whether the bucket at index `bucket`, or any of its next `rv` 
+    ###     replica buckets, is hosted at an alive location.
+    ###
+    ### Parameters:
+    ###     bucket::N              : primary bucket index to inspect.
+    ###     rv::N                  : replication factor.
+    ###     dlls::(DLst (Lst S))   : current suffix of the distributed list being traversed.
+    ###     o_dlls::(DLst (Lst S)) : original distributed list, used for wrap-around when 
+    ###                              the end of `dlls` is reached.
+    ###
+    ### Returns:
+    ###     Boolean indicating whether the primary bucket or any of the next `rv` buckets
+    ###     (modulo the list length) is at a location that is currently alive.
+    declare available_key: (S) [N N (DLst (Lst S)) (DLst (Lst S))] -> Boolean
+    assert available_key_axioms := (fun [
+        (available_key bucket rv dlls (dempty htl)) <==> false
+        (available_key zero zero (dempty htl) o_dlls)  <==> false
+        (available_key zero zero (dlst lh lsts tail_dlls) o_dlls) <==> (Location.alive lh)
+        (available_key zero (S rv) (dlst lh lsts tail_dlls) o_dlls) <==>
+            [
+                true 
+                    when (Location.alive lh)
+                (available_key zero rv tail_dlls o_dlls) 
+                    when (~ Location.alive lh)
+            ]
+        (available_key zero (S rv) (dempty htl) o_dlls) <==>
+            (available_key zero (S rv) o_dlls o_dlls)
+        (available_key (S bucket) rv dlls o_dlls) <==>
+            (available_key bucket rv dlls o_dlls) 
+    ])
 
+
+    ### ---------------------------------------------------------------
+    ### values
+    ### Purpose:
+    ###     Compute the set of all available values contained in a  distributed list of
+    ###     buckets. Only buckets whose location is alive contribute their stored
+    ###     values to the result.
+    ###
+    ### Parameters:
+    ###     dlls : a distributed list (DLst (Lst S)) whose nodes contain
+    ###            locations and the list of stored values at each bucket.
+    ###     sets : accumulator carrying the current Set S result; usually
+    ###            initialized with Set.null by the caller.
+    ###
+    ### Returns:
+    ###     Option (Set S), where:
+    ###         * NONE  : if dlls is empty and the accumulator is empty.
+    ###         * SOME T: the set T obtained by unioning the accumulator
+    ###                   with the value lists of all alive buckets.
+    ###
+    declare values : (S) [(DLst (Lst S)) (Set.Set S)] -> (Option (Set.Set S))
+    define [null insert] := [Set.null Set.insert]
+    assert values_axioms := (fun [
+        (values (dempty htl) (null)) = (NONE)
+        (values (dempty htl) (insert s sets)) = (SOME (insert s sets))
+        (values (dlst lh lsts tail_dlls) sets) = [
+            (values tail_dlls sets) when (~ Location.alive lh)
+            (values tail_dlls (Set.\/ (l2s lsts) sets )) when (Location.alive lh)
+        ]
+    ])
 
 }
 
+open DL_L_S
