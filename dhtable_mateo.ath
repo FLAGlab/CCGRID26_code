@@ -1,6 +1,6 @@
 load "htable.ath"
+load "dlls.ath"
 load "dpair.ath"
-load "dlist.ath"
 # ll := Location List; hf := hash function; rv := replicate value; htl := hash table location
 structure (DHTable S) := (dht_empty  ll:(Lst Location) hf:(fn S N) rv:N htl:Location) |
                          (dht_insert (DHTable S) S)
@@ -11,102 +11,6 @@ datatype (DHTRep S) := (dhtr hf:(fn S N) rv:N htl:Location (DLst (Lst S)))
 
 module DHTable {
 
-	module DL_L_S {
-		define [s htv tail_s lsts l lh htl htl0 tail_l f  tail_DLLS DLLS O_DLLS n bucket 
-			    rv sets] := 
-			   [?s:'S ?htv:'S ?tail_s:(Lst 'S) ?lsts:(Lst 'S) ?l:Location ?lh:Location 
-			    ?htl:Location ?htl0:Location ?tail_l:(Lst Location) ?f:(fn 'S N) 
-				?tail_DLLS:(DLst (Lst 'S)) ?DLLS:(DLst (Lst 'S)) ?O_DLLS:(DLst (Lst 'S))
-				?n:N ?bucket:N ?rv:N ?sets:(Set.Set 'S)]
-
-		declare initDPrList: (S) [(fn S N) Location (Lst Location)] -> (DLst (Lst S))
-
-		assert  initDPrList_axioms :=  (fun [ 
-				(initDPrList f htl0 (lst l tail_l))  =
-					[
-						(dlst l empty (initDPrList f htl0 tail_l))
-							when (~(tail_l = empty))
-						(dlst l empty (dempty htl0))
-							when (tail_l = empty)
-					]
-				(initDPrList f htl0 empty)  = (dempty htl0) 
-			])
-
-		declare insertDPrList: (S) [N S (DLst (Lst S))] -> (DLst (Lst S))
-		# # WHE ASSUME THAT ALWAYS : N < len (Lst ...)
-		# TODO: Each insertion need to also make the corresponding replica insertion...
-		assert  insertDPrList_axioms := (fun [
-				(insertDPrList zero v (dlst lh (lst s tail_s) tail_DLLS)) =
-					(dlst lh (lst v (lst s tail_s)) tail_DLLS)
-
-				(insertDPrList (S n) v (dlst lh lsts tail_DLLS)) =
-					(dlst lh lsts (insertDPrList n v tail_DLLS))
-			])
-		
-		declare available_key: (S) [N N (DLst (Lst S)) (DLst (Lst S))] -> Boolean
-
-
-		assert alive_modulo_replication_axioms := (fun [
-			# TODO: change (S zero) to just zero... as in the paper
-			(available_key zero (S zero) (dlst lh lsts tail_DLLS) O_DLLS) = 
-				(Location.alive lh)
-			(available_key zero (S S rv) (dlst lh lsts tail_DLLS) O_DLLS) = 
-				# Thi is horrible!!! it should be something like:
-				#   ((Location.alive lh) | (available_key zero (S rv) tail_DLLS O_DLLS))
-				# What if it is not an 'or' and instead and 'and'/'->'???
-				[
-					true 
-						when (Location.alive lh)
-					(available_key zero (S rv) tail_DLLS O_DLLS) 
-						when (~ Location.alive lh)
-				]
-			(available_key zero (S rv) (dempty htl) O_DLLS) = 
-				(available_key zero (S rv) O_DLLS O_DLLS)
-			# We are working under the assumption that the bucket value is alway a value
-			# that fulfills: 0 < (S bucket) < len DLLS. Otherwise this computation might
-			# not end
-			(available_key (S bucket) rv DLLS O_DLLS) = 
-				(available_key bucket rv DLLS O_DLLS) 
-		])
-
-		declare in: (S) [S N N (DLst (Lst S)) (DLst (Lst S))] -> Boolean
-
-		assert in_axioms := (fun [
-			(in htv zero (S zero) (dlst lh lsts tail_DLLS) O_DLLS) = 
-				(Lst.in htv lsts)
-
-			(in htv zero (S S rv) (dlst lh lsts tail_DLLS) O_DLLS) = 
-				[
-					true 
-						when (Lst.in htv lsts)
-					(in htv zero (S rv) tail_DLLS O_DLLS) 
-						when (~ Lst.in htv lsts)
-				]
-			(in htv zero (S rv) (dempty htl) O_DLLS) = 
-				(in htv zero (S rv) O_DLLS O_DLLS)
-			# We are working under the assumption that the bucket value is alway a value
-			# that fulfills: 0 < (S bucket) < len DLLS. Otherwise this computation might
-			# not end
-			(in htv (S bucket) rv DLLS O_DLLS) = 
-				(in htv bucket rv DLLS O_DLLS) 
-		])
-
-		define in_init_false :=
-			(forall v f htl lsts bucket rv  . (~ (in v bucket rv (initDPrList f htl lsts) (initDPrList f htl lsts) )))
-
-		declare values : (S) [(DLst (Lst S)) (Set.Set S)] -> (Option (Set.Set S))
-		define [null insert] := [Set.null Set.insert]
-		assert values_axioms := (fun [
-			(values (dempty htl) (null)) = (NONE)
-			(values (dempty htl) (insert s sets)) = (SOME (insert s sets))
-			(values (dlst lh lsts tail_DLLS) sets) = [
-				(values tail_DLLS sets) when (~ Location.alive lh)
-				(values tail_DLLS (sets \/ (l2s lsts))) when (Location.alive lh)
-			]
-		])
-
-		
-	}
 	define [initDPrList insertDPrList available_key in] := 
 	       [DL_L_S.initDPrList DL_L_S.insertDPrList 
 		    DL_L_S.available_key DL_L_S.in]
@@ -204,7 +108,7 @@ module DHTable {
 
 	assert query_axioms :=
 		(fun [(query dht v) = [
-			(SOME (in v (hf at v) rv dlls dlls))
+			(SOME (in (hf at v) rv dlls dlls v) )
 						when (((rep dht) = (dhtr hf rv htl dlls)) & 
 							  (available_key (hf at v) rv dlls dlls))
 			NONE 
@@ -229,9 +133,5 @@ module DHTable {
 	# 		(DL_L_S.values dlls Set.null)
 	# 					when ((rep dht) = (dhtr hf rv htl dlls))]
 	# 	])
-
-	
-	
-
 
 }
