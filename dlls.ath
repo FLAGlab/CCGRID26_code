@@ -210,13 +210,17 @@ module DL_L_S {
 
     define in_init_false :=
         (forall bucket rv lsts f v htl . 
-            (~ in bucket rv (initDPrList f htl lsts) (initDPrList f htl lsts) v ))
+            (in bucket rv (initDPrList f htl lsts) (initDPrList f htl lsts) v ) <==> false )
     conclude in_init_false
         pick-any bucket rv lsts f v htl
-            (!by-contradiction
-                (~ in bucket rv (initDPrList f htl lsts) (initDPrList f htl lsts) v )
+            (!equiv 
                 (!uspec* in_init_false_aux [bucket rv lsts f v htl])
+                (
+                    assume false
+                        (!from-false (in bucket rv (initDPrList f htl lsts) (initDPrList f htl lsts) v ))
+                )
             )
+            
     
     ### ---------------------------------------------------------------
     ### available_key
