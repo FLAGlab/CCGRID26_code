@@ -32,10 +32,31 @@ module DHTable {
 		((f = g) & (n = m) & (l0 = l1) & (dlls0 = dlls1))
 	)
 
+	### ------------------------------------------------------------
+	### rep
+	### Purpose:
+	###     Extract the internal distributed representation of a distributed hash table.
+	###     This function expands the abstract DHTable structure into its operational form,
+	###     consisting of the hash function, replication factor, home table location, and
+	###     the distributed list of buckets.
+	###
+	### Parameters:
+	###     dht::(DHTable S) : A distributed hash table.
+	###
+	### Returns:
+	###     A value of type (DHTRep S), constructed as:
+	###         dhtr hf rv htl dlls
+	###     where:
+	###       - hf   : hash function stored in the table
+	###       - rv   : replication value (>0)
+	###       - htl  : base location of the table
+	###       - dlls : distributed list of buckets, initialized with
+	###               initDPrList for empty tables, or updated using
+	###               insertDPrList when inserting a value v into the
+	###               bucket at position (hf at v).
+	###
+	# TODO: may be here we can ensure that rv>0...
 	declare rep : (S) [(DHTable S)] -> (DHTRep S)	       
-
-	overload rep HTable.rep
-
 	assert rep_axioms :=
 		(fun [
 			(rep (dht_empty ll hf rv htl)) = (dhtr hf rv htl (initDPrList hf htl ll))
@@ -76,50 +97,74 @@ module DHTable {
 	# insertion in the dht must have the value and the value replicated rv number of times
 	# in the valid buckets
 
-	# getters definitions
-
-	declare get_hf : (S) [(DHTable S)] -> (fn S N)
-	assert get_hf_axioms :=
-	(fun
-	[(get_hf (dht_empty ll hf rv htl))    = hf
-		(get_hf (dht_insert dht v))       = (get_hf dht)])
-
-	declare get_rv : (S) [(DHTable S)] -> N
-	assert get_rv_axioms :=
-	(fun
-	[(get_rv (dht_empty ll hf rv htl))    = rv
-		(get_rv (dht_insert dht v))       = (get_rv dht)])
-
-	declare get_dlls : (S) [(DHTable S)] -> (DLst (Lst S))
-	assert get_dlls_axioms :=
-	(fun [ (get_dlls dht) = [dlls when ((rep dht) = (dhtr hf rv htl dlls))] ])
-
-
-	#---available
-
+	### ------------------------------------------------------------
+	### available_aux / available
+	### Purpose:
+	### 	These predicates determine whether a distributed hash table is fully available.
+	###		A distributed table is considered available when every value in the domain can
+	###		be safely queried, meaning that all buckets required for lookups are alive 
+	###		according to the replication policy.
+    ### Returns:
+    ###     available_aux dhtr :
+    ###         True  if for every value v, available_key (hf v) rv dlls dlls
+    ###         evaluates to True. 
+	###			otherwise False.
+    ###
+    ###     available dht :
+    ###         Equivalent to available_aux (rep dht).
+	###
+	declare available_aux : (S) [(DHTRep S)] -> Boolean
+	assert* available_aux_axiom :=
+		( (available_aux (dhtr hf rv htl dlls)) <==> 
+			(forall v . (available_key (hf at v) rv dlls dlls)) )
 	declare available: (S) [(DHTable S)] -> Boolean
-	assert available_axiom :=
-	(forall dht v . ((f = (get_hf dht)) & (rv = (get_rv dht)) & (dlls = (get_dlls dht)) )
-					==> (available_key (f at v) rv dlls dlls))
+	assert* available_axiom := ((available dht) <==> (available_aux (rep dht)))
 
-	#---dht-query
-
-	declare query : (S) [(DHTable S) S] -> (Option Boolean)
-
-	assert query_axioms :=
-		(fun [(query dht v) = [
+	### ---------------------------------------------------------------
+	### query / query_aux
+	### Purpose:
+	###     Perform a lookup operation on a distributed hash table. The function
+	###		`query_aux` executes the lookup over the internal representation (DHTRep),
+	###		while `query` is the  public version that first expands the DHTable using
+	###     `rep` and then delegates to `query_aux`.
+	###
+	### Returns:
+	###     Option Boolean:
+	###         SOME b     when the key v is located in one of the
+	###                    available buckets or replicas. The boolean
+	###                    b indicates whether v is present.
+	###         NONE       when the lookup cannot be completed because
+	###                    the relevant bucket and its replicas are not
+	###                    available.
+	###
+	declare query_aux : (S) [(DHTRep S) S] -> (Option Boolean)
+	assert query_aux_axioms :=
+		(fun [(query_aux (dhtr hf rv htl dlls) v) = [
 			(SOME (in (hf at v) rv dlls dlls v) )
-						when (((rep dht) = (dhtr hf rv htl dlls)) & 
-							  (available_key (hf at v) rv dlls dlls))
+						when (available_key (hf at v) rv dlls dlls)
 			NONE 
 						when (~ available_key (hf at v) rv dlls dlls)
 			]]
 		)
+	declare query : (S) [(DHTable S) S] -> (Option Boolean)
+	assert* query_axiom := ((query dht v) = (query_aux (rep dht) v))
+
 	
 	define query_fc_empty :=
 	(forall ll hf rv htl v .
 		((available (dht_empty ll hf rv htl)) ==>
 		  ((query (dht_empty ll hf rv htl) v) = (SOME false))))
+
+	# pick-any ll hf rv htl v
+	# 	assume (available (dht_empty ll hf rv htl))
+	# 	(!chain [
+	# 		(query (dht_empty ll hf rv htl) v)
+	# 		= (query_aux (rep (dht_empty ll hf rv htl)) v) [query_axiom]
+	# 		= (query_aux (dhtr hf rv htl (initDPrList hf htl ll)) v) [rep_axioms]
+	# 		= (SOME (in (hf at v) rv (initDPrList hf htl ll) (initDPrList hf htl ll))) [query_aux_axioms]
+	# 		= (SOME false) [DL_L_S.in_init_false]
+	# 	])
+
 
 
 	# #---dht-values
