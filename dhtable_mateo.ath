@@ -155,15 +155,30 @@ module DHTable {
 		((available (dht_empty ll hf rv htl)) ==>
 		  ((query (dht_empty ll hf rv htl) v) = (SOME false))))
 
-	# pick-any ll hf rv htl v
-	# 	assume (available (dht_empty ll hf rv htl))
-	# 	(!chain [
-	# 		(query (dht_empty ll hf rv htl) v)
-	# 		= (query_aux (rep (dht_empty ll hf rv htl)) v) [query_axiom]
-	# 		= (query_aux (dhtr hf rv htl (initDPrList hf htl ll)) v) [rep_axioms]
-	# 		= (SOME (in (hf at v) rv (initDPrList hf htl ll) (initDPrList hf htl ll))) [query_aux_axioms]
-	# 		= (SOME false) [DL_L_S.in_init_false]
-	# 	])
+	pick-any ll hf rv htl v
+		assume ava := (available (dht_empty ll hf rv htl))
+		let {
+			uq_available_key := (!chain<- [
+				 	(forall v . (available_key (hf at v) rv (initDPrList hf htl ll) (initDPrList hf htl ll))) 
+				<==> (available_aux (dhtr hf rv htl (initDPrList hf htl ll) )) [available_aux_axiom]
+				<==> (available_aux (rep (dht_empty ll hf rv htl) )) [rep_axioms]
+				<==> (available (dht_empty ll hf rv htl))	[available_axiom]
+			]);
+			availableKey := (!uspec uq_available_key v);
+			query_some :=
+				(!chain [
+					(query (dht_empty ll hf rv htl) v)
+					= (query_aux (rep (dht_empty ll hf rv htl)) v) [query_axiom]
+					= (query_aux (dhtr hf rv htl (initDPrList hf htl ll)) v) [rep_axioms]
+					= (SOME (in (hf at v) rv (initDPrList hf htl ll) (initDPrList hf htl ll) v)) [query_aux_axioms]
+				])
+			}
+			(!chain<- [
+				    ((query (dht_empty ll hf rv htl) v) = SOME false) 
+				<== ((query (dht_empty ll hf rv htl) v) = SOME (in (hf at v) rv (initDPrList hf htl ll) (initDPrList hf htl ll) v))  [force]
+				# TODO: Why!!!? if false <==> ...? why I can not use in_init_false? WHY!!!?
+				<== true [query_some]
+			])
 
 
 
