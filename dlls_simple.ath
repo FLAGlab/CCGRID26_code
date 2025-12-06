@@ -62,6 +62,7 @@ module DL_L_S {
     ###      within the next `rv` buckets modulo the length of the list.
     declare in: (S) [N N (DLst (Lst S)) (DLst (Lst S)) S] -> Boolean
     assert in_axioms := (fun [
+        (in bucket rv dlls (dempty htl) htv) <==> false
         (in zero zero (dempty htl) o_dlls htv) <==> false
         (in zero zero (dlst lh lsts tail_dlls) o_dlls htv) <==> (Lst.in htv lsts)
         (in zero (S rv) (dlst lh lsts tail_dlls) o_dlls htv) <==>
@@ -73,7 +74,6 @@ module DL_L_S {
             ]
         (in zero (S rv) (dempty htl) o_dlls htv) <==> (in zero (S rv) o_dlls o_dlls htv)
         (in (S bucket) rv dlls o_dlls htv) <==> (in bucket rv dlls o_dlls htv) 
-        (in bucket rv dlls (dempty htl) htv) <==> false
     ])
     
     define in_init_false_lsts := 
@@ -123,7 +123,10 @@ module DL_L_S {
                 <== true [in_init_false_lsts]
             ])
         | (S rv0) =>
-        pick-any lsts f v htl
+        let {
+        IH := (forall lsts f v htl .  (~ in zero rv0 (initDPrList f htl lsts) (initDPrList f htl lsts) v ))
+        }
+        pick-any lsts f:(fn 'S N) v:'S htl
         (!cases (!uspec* initDPrList_characterization [f htl lsts])
             assume  empty_dlst := ((initDPrList f htl lsts) = (dempty htl)) 
             (!by-contradiction
@@ -138,7 +141,8 @@ module DL_L_S {
                     (initDPrList f htl lsts) = (dlst l empty (initDPrList f htl tail_l)))
             pick-witnesses l0 tail_l0 for no_empty_dlst init_characterization
             let {
-                ih := (~ in zero rv0 (initDPrList f htl tail_l0) (initDPrList f htl lsts) v)}
+                ih := (!uspec* IH [tail_l0 f v htl]);
+                _ := (write ih)}
             (!by-contradiction
                 (~ in zero (S rv0) (initDPrList f htl lsts) (initDPrList f htl lsts) v)
                 (!chain [
@@ -147,11 +151,13 @@ module DL_L_S {
                     # This step is force... but the justification should be in_axioms,
                     # just do not know at first glance how to make it work, this step does
                     # not worry me
-                    ==> (in zero rv0 (initDPrList f htl tail_l0) (initDPrList f htl lsts) v) [force]
+                    ==> (in zero rv0 (initDPrList f htl tail_l0) (initDPrList f htl tail_l0) v) [force]
+                    ==> ((~in zero rv0 (initDPrList f htl tail_l0) (initDPrList f htl tail_l0) v) and (in zero rv0 (initDPrList f htl tail_l0) (initDPrList f htl tail_l0) v)) [augment]
+
                     # This is the step that really worries me, in theory the justification
                     # should be ih (Line 141) but that is not quiet the ih for this
                     # induction. Thus, is there a way to make this work? or what should I do?
-                    ==> false                                                                [force]
+                    ==> false                                                                [prop-taut]
                 ])
             )
         )
