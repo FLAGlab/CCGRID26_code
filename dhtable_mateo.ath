@@ -16,10 +16,11 @@ module DHTable {
 		    DL_L_S.available_key DL_L_S.in]
 
 	assert dht_st_axioms := (structure-axioms "DHTable")
+	define [s s0] := [?s:(Set.Set 'S) ?s0:(Set.Set 'S)]
 	define [dht_no_conf dht_no_junk] := dht_st_axioms
-	define [v]           := [?v:'S]
+	define [v v0 v2]     := [?v:'S ?v0:'S ?v2:'S]
 	define [rv rv1 n m]  := [?rv:N ?rv1:N ?n:N ?m:N]
-	define [dht dht1]    := [?dht:(DHTable 'S)  ?dht1:(DHTable 'S) ]
+	define [dht dht0 dht1]    := [?dht:(DHTable 'S) ?dht0:(DHTable 'S)  ?dht1:(DHTable 'S) ]
 	define [ll ll1]      := [?ll:(Lst Location) ?ll1:(Lst Location)]
 	define [htl htl1 l0 l1] := [?htl:Location ?htl1:Location ?l0:Location ?l1:Location]
 	define [hf hf1 f g]     := [?hf:(fn 'S N) ?hf1:(fn 'S N) ?f:(fn 'S N) ?g:(fn 'S N)]
@@ -179,19 +180,67 @@ module DHTable {
 				# TODO: Why!!!? if false <==> ...? why I can not use in_init_false? WHY!!!?
 				<== true [query_some]
 			])
+	
+	define [b0 b1] := [?b0:Boolean ?b1:Boolean]
 
+	# define query_fc_insert :=
+	# 	(forall dht v0 v1 . (available (dht_insert dht v0)) ==>
+	# 		exists b0 b1 . (
+	# 			((query (dht_insert dht v0) v1) = (SOME b0)) &
+	# 			((query dht v1) = (SOME b1)) &
+	# 			(b0 <==> ((v0 = v1) | b1))
+	# 		))
+	define query_functional_correctness :=
+		(forall dht v . (available dht ==>
+			(
+				(exists ll hf rv htl .
+						(dht = (dht_empty ll hf rv htl) &
+						(query dht v) = (SOME false))) 
+				| (exists dht0 v0 b b0 . (
+								dht = (dht_insert dht0 v0) &
+								(query dht v)  = (SOME b) &
+								(query dht0 v) = (SOME b0) &
+								(b <==> ((v = v0) | b0))
+							))
+			)))
 
 
 	# #---dht-values
 
-	# declare values : (S) [(DHTable S)] -> (Option (Set.Set S))
+	declare values_aux : (S) [(DHTRep S)]  -> (Option (Set.Set S))
+	assert* values_aux_axioms := 
+			((values_aux (dhtr hf rv htl dlls)) = (DL_L_S.values dlls Set.null false))
+	declare values : 	 (S) [(DHTable S)] -> (Option (Set.Set S))
+	assert* values_axiom := ((values dht) = (values_aux (rep dht)))
 
 
-	# assert values_axioms :=
-	# (fun
-	# 	[(values dht) = [
-	# 		(DL_L_S.values dlls Set.null)
-	# 					when ((rep dht) = (dhtr hf rv htl dlls))]
-	# 	])
+	define values_functional_correctness :=
+		(forall dht . (available dht ==>
+				(exists ll hf rv htl .
+						(dht = (dht_empty ll hf rv htl) &
+								(values dht) = (SOME Set.null))) 
+				| (exists dht0 v0 s s0 . (
+							dht = (dht_insert dht0 v0) &
+							(values dht) = (SOME s) &
+							(values dht0) = (SOME s0) &
+							(s = (Set.insert v0 s0))))))
 
+	############################
+
+	define dht_functional_correctness :=
+		(forall dht v . (available dht ==>
+			(exists ll hf rv htl .
+				(dht = (dht_empty ll hf rv htl) &
+				((query dht v) = (SOME false)) &
+				(values dht = (SOME Set.null)) )) |
+			(exists dht0 v0 b b0 s s0 . 
+				(dht = (dht_insert dht0 v0) &
+				((query dht v)  = (SOME b) &
+				(query dht0 v) = (SOME b0) &
+				(b <==> ((v = v0) | b0))) &
+				((values dht) = (SOME s) &
+				(values dht0) = (SOME s0) &
+				(s = (Set.insert v0 s0))))
+			)))
+				# & (hf dht = hf dht0)
 }

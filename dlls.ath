@@ -5,6 +5,7 @@ load "dlist.ath"
 # open Function
 module DL_L_S {
     define [f]     := [?f:(fn 'S N)]
+    define [b]     := [?b:Boolean]
     define [sets]  := [?sets:(Set.Set 'S)]
     define [lsts tail_s]  := [?lsts:(Lst 'S) ?tail_s:(Lst 'S)]
     define [s htv v head]          := [?s:'S ?htv:'S ?v:'S ?head:(Lst 'S)]
@@ -276,14 +277,15 @@ module DL_L_S {
     ###         * SOME T: the set T obtained by unioning the accumulator
     ###                   with the value lists of all alive buckets.
     ###
-    declare values : (S) [(DLst (Lst S)) (Set.Set S)] -> (Option (Set.Set S))
-    define [null insert] := [Set.null Set.insert]
+    declare values : (S) [(DLst (Lst S)) (Set.Set S) Boolean] -> (Option (Set.Set S))
+    define [null insert \/] := [Set.null Set.insert Set.\/]
     assert values_axioms := (fun [
-        (values (dempty htl) (null)) = (NONE)
-        (values (dempty htl) (insert s sets)) = (SOME (insert s sets))
-        (values (dlst lh lsts tail_dlls) sets) = [
-            (values tail_dlls sets) when (~ Location.alive lh)
-            (values tail_dlls (Set.\/ (l2s lsts) sets )) when (Location.alive lh)
+        (values (dempty htl) (null) false) = NONE
+        (values (dempty htl) (null) true)  = (SOME null) 
+        (values (dempty htl) (insert s sets) b) = (SOME (insert s sets))
+        (values (dlst lh lsts tail_dlls) sets b) = [
+            (values tail_dlls sets b) when (~ Location.alive lh)
+            (values tail_dlls (\/ (l2s lsts) sets ) true) when (Location.alive lh)
         ]
     ])
 
