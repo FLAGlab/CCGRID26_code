@@ -1,0 +1,54 @@
+load "list"
+load "set-util"
+load "location"
+load "lst-toset"
+
+
+domain Operation
+datatype (Msg Content) :=  (msg op:Operation c:Content)
+datatype (Node Content) := (node id:N 
+                                 state:(Set.Set Content)
+                                 mailbox:(Lst (Msg Content))
+                                 location:Location)
+
+module CRDT {
+
+    define  [c] := [?c:'Content]
+    define  [msg0] := [?msg0:(Msg 'Content)]
+    define  [state state0 state1] := [?state:(Set.Set 'Content) ?state0:(Set.Set 'Content)
+                                      ?state1:(Set.Set 'Content)]
+    define  [mailbox mailbox_tail mailbox0 mailbox1] 
+            := [?mailbox:(Lst (Msg 'Content)) ?mailbox_tail:(Lst (Msg 'Content))
+                ?mailbox0:(Lst (Msg 'Content)) ?mailbox1:(Lst (Msg 'Content))] 
+
+    define  [null insert \/] := [Set.null Set.insert Set.\/]
+
+
+    declare add: Operation
+
+    declare singleton: (Content) [Content] -> (Set.Set Content)
+    assert* ((singleton c) = (insert c null))
+
+    declare mailbox_equality: (Content) [(Lst (Msg Content)) (Lst (Msg Content))] -> Boolean
+    assert* ((mailbox_equality mailbox0 mailbox1) <==> ((l2s mailbox0) = (l2s mailbox1)))
+
+    declare apply: (Content, State) [(Msg Content) State] -> State
+    assert* apply_add_axiom :=
+        ((apply (msg add c) state) = ( (singleton c) \/ state))
+    
+    declare apply_mailbox: (Content, State) [(Lst (Msg Content)) State] -> State
+    assert apply_mailbox_axioms :=
+        (fun [
+            (apply_mailbox empty state) = state
+            (apply_mailbox (lst msg0 mailbox_tail) state) 
+                = (apply_mailbox mailbox_tail (apply msg0 state))
+        ])
+    
+
+    define eventual_consistency :=
+        ( forall mailbox0 mailbox1 state0 state1  .
+            (mailbox_equality mailbox0 mailbox1) & (state0 = state1)
+            ==>
+            (apply_mailbox mailbox0  state0) = (apply_mailbox mailbox1 state1) 
+        )
+}
