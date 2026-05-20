@@ -104,27 +104,40 @@ module DHTable {
 	# in the valid buckets
 
 	### ------------------------------------------------------------
-	### available_aux / available
+	### available (constructor-recursive on DHTable; addresses B1 in fixes.txt)
 	### Purpose:
-	### 	These predicates determine whether a distributed hash table is fully available.
-	###		A distributed table is considered available when every value in the domain can
-	###		be safely queried, meaning that all buckets required for lookups are alive 
-	###		according to the replication policy.
-    ### Returns:
-    ###     available_aux dhtr :
-    ###         True  if for every value v, available_key (hf v) rv dlls dlls
-    ###         evaluates to True. 
-	###			otherwise False.
-    ###
-    ###     available dht :
-    ###         Equivalent to available_aux (rep dht).
+	###     A distributed hash table is "available" when every value it actually
+	###     stores can be queried successfully — i.e. the bucket window for each
+	###     inserted value is alive. Stated constructor-recursively over the
+	###     DHTable shape:
 	###
-	declare available_aux : (S) [(DHTRep S)] -> Boolean
-	assert* available_aux_axiom :=
-		( (available_aux (dhtr hf rv htl dlls)) <==> 
-			(forall v . (available_key (hf at v) rv dlls dlls)) )
-	declare available: (S) [(DHTable S)] -> Boolean
-	assert* available_axiom := ((available dht) <==> (available_aux (rep dht)))
+	###       * an empty DHT has no stored values, so it is trivially available;
+	###       * (dht_insert dht v) is available iff dht is and the bucket window
+	###         where v was just placed is alive.
+	###
+	###     This replaces the previous formulation
+	###         (available_aux (dhtr hf rv htl dlls)) <==>
+	###             (forall v . available_key (hf at v) rv dlls dlls)
+	###     which quantified over the entire carrier 'S. For an infinite 'S
+	###     (e.g. N) that was effectively "every bucket is rv-safe" (fixes.txt
+	###     B1.1) and strictly stronger than what query_functional_correctness
+	###     needs (B1.2). The new form makes both branches of the QFC induction
+	###     carry useful information: the empty branch is trivially available,
+	###     the insert branch hands us `available_key` on the freshly inserted
+	###     bucket directly. The intermediate predicate `available_aux` (which
+	###     lifted the bad characterization to DHTRep) is dropped — every use
+	###     site folded through it back to `available` anyway.
+	###
+	### Returns:
+	###     Boolean.
+	declare available : (S) [(DHTable S)] -> Boolean
+	assert available_axioms := (fun [
+		(available (dht_empty ll hf rv htl)) <==> true
+		(available (dht_insert dht v)) <==> [
+			((available dht) & (available_key (hf at v) rv dlls dlls))
+				when ((rep dht) = (dhtr hf rv htl dlls))
+		]
+	])
 
 	### ---------------------------------------------------------------
 	### query / query_aux
@@ -156,21 +169,40 @@ module DHTable {
 	assert* query_axiom := ((query dht v) = (query_aux (rep dht) v))
 
 	
+	# After the B1 refactor, `available (dht_empty ll hf rv htl) <==> true`, so
+	# the old `available` antecedent no longer constrains bucket aliveness on
+	# its own. The theorem is restated with the relevant `available_key`
+	# hypothesis spelled out directly. Under the old `available_aux_axiom` the
+	# two forms were equivalent (the old axiom would have let you derive this
+	# hypothesis from `available`); under the new constructor-recursive
+	# `available`, the direct form is the provable one.
 	define query_fc_empty :=
 	(forall ll hf rv htl v .
-		((available (dht_empty ll hf rv htl)) ==>
+		((available_key (hf at v) rv (initDPrList hf htl ll) (initDPrList hf htl ll)) ==>
 		  ((query (dht_empty ll hf rv htl) v) = (SOME false))))
 
+	# B4 (fixes.txt) discharged: the old `force` step bridging
+	#   (in … (…) v) <==> false      (what in_init_false gives us)
+	# to
+	#   (in … (…) v) =  false        (what `query = (SOME false)` needs under SOME)
+	# is now done by chaining iff → (~ p) → (p = false) via `false-bool` from bool.ath.
 	pick-any ll hf rv htl v
-		assume ava := (available (dht_empty ll hf rv htl))
+		assume availableKey :=
+			(available_key (hf at v) rv (initDPrList hf htl ll) (initDPrList hf htl ll))
 		let {
-			uq_available_key := (!chain<- [
-				 	(forall v . (available_key (hf at v) rv (initDPrList hf htl ll) (initDPrList hf htl ll))) 
-				<==> (available_aux (dhtr hf rv htl (initDPrList hf htl ll) )) [available_aux_axiom]
-				<==> (available_aux (rep (dht_empty ll hf rv htl) )) [rep_axioms]
-				<==> (available (dht_empty ll hf rv htl))	[available_axiom]
-			]);
-			availableKey := (!uspec uq_available_key v);
+			# in_init_false instantiated at our query's bucket and rep witnesses:
+			#   (in (hf at v) rv (initDPrList hf htl ll) (initDPrList hf htl ll) v) <==> false
+			p_iff_false := (!uspec* in_init_false
+									[(hf at v) rv ll hf v htl]);
+			# Iff with `false` is propositionally equivalent to negation.
+			not_p := (!chain-> [
+						p_iff_false
+						==> (~ (in (hf at v) rv (initDPrList hf htl ll) (initDPrList hf htl ll) v))
+							[prop-taut]
+					]);
+			# bool.ath's false-bool turns (~ p) into the term equality (p = false),
+			# closing the gap that previously forced `force`.
+			p_eq_false := (!false-bool not_p);
 			query_some :=
 				(!chain [
 					(query (dht_empty ll hf rv htl) v)
@@ -179,11 +211,10 @@ module DHTable {
 					= (SOME (in (hf at v) rv (initDPrList hf htl ll) (initDPrList hf htl ll) v)) [query_aux_axioms]
 				])
 			}
-			(!chain<- [
-				    ((query (dht_empty ll hf rv htl) v) = SOME false) 
-				<== ((query (dht_empty ll hf rv htl) v) = SOME (in (hf at v) rv (initDPrList hf htl ll) (initDPrList hf htl ll) v))  [force]
-				# TODO: Why!!!? if false <==> ...? why I can not use in_init_false? WHY!!!?
-				<== true [query_some]
+			(!chain [
+				(query (dht_empty ll hf rv htl) v)
+				= (SOME (in (hf at v) rv (initDPrList hf htl ll) (initDPrList hf htl ll) v)) [query_some]
+				= (SOME false)                                                                [p_eq_false]
 			])
 	
 	define [b0 b1] := [?b0:Boolean ?b1:Boolean]
@@ -195,19 +226,50 @@ module DHTable {
 	# 			((query dht v1) = (SOME b1)) &
 	# 			(b0 <==> ((v0 = v1) | b1))
 	# 		))
+	### ------------------------------------------------------------
+	### query_functional_correctness (TODO — asserted, not yet proved)
+	###
+	### After the B1 refactor, `available dht` no longer guarantees
+	### bucket-aliveness for arbitrary v. The theorem now takes the relevant
+	### `available_key` fact as an explicit per-v hypothesis (the same change
+	### we already made to query_fc_empty), and pulls the rep witnesses
+	### (hf rv htl dlls) into the outer forall so they're in scope for both
+	### the hypothesis and the empty-disjunct's existential.
+	###
+	### Proof obligation (deferred — fixes.txt B5):
+	###   * Empty branch (dht = dht_empty ll hf rv htl): follows from
+	###     query_fc_empty using the available_key hypothesis directly.
+	###   * Insert branch (dht = dht_insert dt v0):
+	###       - case v = v0: needs the full-bucket G1 (in_after_insert_self
+	###         at arbitrary bucket). Only the bucket=0 case is proven in
+	###         dlls.ath:630; see the "Full G1" status block at
+	###         dlls.ath:668-701 for the missing size / `<` infrastructure.
+	###       - case v ≠ v0: needs G2 (in_after_insert_other) — currently
+	###         asserted as a TODO in dlls.ath:720.
+	###       - either case: G3 (available_key_insert_invariant) is proven
+	###         (dlls.ath:776), modulo its asserted intermediate
+	###         available_key_dlls_locs_inv.
+	### Direct induction on dht is the cleaner path; Carlos's canonical /
+	### ht-equiv bridge does not lift to rv+1-fold replication (no bijection
+	### between DHTable and HTable when each value lives in many buckets).
+	# TODO: discharge by induction on dht once full G1 is proven and G2 is
+	# upgraded from an asserted conjecture to a proven theorem.
 	define query_functional_correctness :=
-		(forall dht v . (available dht ==>
+		(forall dht v hf rv htl dlls .
+			(rep dht = (dhtr hf rv htl dlls) &
+			 (available dht) &
+			 (available_key (hf at v) rv dlls dlls))
+			==>
 			(
-				(exists ll hf rv htl .
-						(dht = (dht_empty ll hf rv htl) &
-						(query dht v) = (SOME false))) 
+				(exists ll . (dht = (dht_empty ll hf rv htl) &
+				              (query dht v) = (SOME false)))
 				| (exists dht0 v0 b b0 . (
-								dht = (dht_insert dht0 v0) &
-								(query dht v)  = (SOME b) &
-								(query dht0 v) = (SOME b0) &
-								(b <==> ((v = v0) | b0))
-							))
-			)))
+						dht = (dht_insert dht0 v0) &
+						(query dht v)  = (SOME b) &
+						(query dht0 v) = (SOME b0) &
+						(b <==> ((v = v0) | b0))))
+			))
+	assert query_functional_correctness
 
 
 	# #---dht-values
