@@ -6,14 +6,22 @@ open Function
 module DL_L_S {
     define [f]     := [?f:(fn 'S N)]
     define [b]     := [?b:Boolean]
-    define [sets]  := [?sets:(Set.Set 'S)]
+    define [sets s0]  := [?sets:(Set.Set 'S) ?s0:(Set.Set 'S)]
     define [lsts lsts1 lsts2 tail_s]  := [?lsts:(Lst 'S) ?lsts1:(Lst 'S) ?lsts2:(Lst 'S) ?tail_s:(Lst 'S)]
     define [tail_l1 tail_l2] := [?tail_l1:(Lst Location) ?tail_l2:(Lst Location)]
     define [l1 l2] := [?l1:Location ?l2:Location]
-    define [s htv v head]          := [?s:'S ?htv:'S ?v:'S ?head:(Lst 'S)]
-    define [n rv rv0 bucket]  := [?n:N ?rv:N ?rv0:N ?bucket:N]
-    define [dlls tail_dlls o_dlls]  := 
+    define [s htv v v0 head]       := [?s:'S ?htv:'S ?v:'S ?v0:'S ?head:(Lst 'S)]
+    define [n rv rv0 bucket bucket0]  := [?n:N ?rv:N ?rv0:N ?bucket:N ?bucket0:N]
+    define [dlls tail_dlls o_dlls]  :=
            [?dlls:(DLst (Lst 'S)) ?tail_dlls:(DLst (Lst 'S)) ?o_dlls:(DLst (Lst 'S))]
+    # Extra dlls binders used by the location-preservation / available-key
+    # invariance lemmas below.
+    define [dlls1 dlls2 o_dlls1 o_dlls2] :=
+           [?dlls1:(DLst (Lst 'S)) ?dlls2:(DLst (Lst 'S))
+            ?o_dlls1:(DLst (Lst 'S)) ?o_dlls2:(DLst (Lst 'S))]
+    # Extra N binders used by available_key invariance statements (so the
+    # quantified `B R` aren't confused with the insert's `bucket rv`).
+    define [B R] := [?B:N ?R:N]
     define [l l0 lh htl htl0 ll tail_l tail_l0] := 
            [?l:Location ?l0:Location ?lh:Location ?htl:Location ?htl0:Location
             ?ll:(Lst Location) ?tail_l:(Lst Location) ?tail_l0:(Lst Location)]
@@ -185,6 +193,114 @@ module DL_L_S {
             = (insertNAt zero (S rv) v (dempty htl))                         [insertNAt_axioms]
             = (dempty htl)                                                    [insertNAt_axioms]
         ])
+
+    ### -----------------------------------------------
+    ### dlls_locs / location-preservation lemmas (toward G3 in roadmap)
+    ###
+    ### insertNAt / insertDPrList rewrite only bucket contents (the lsts field of
+    ### each dlst node), never bucket locations (the lh field). The lemmas below
+    ### make that explicit by projecting a dlls down to its sequence of head
+    ### locations and showing that this projection is invariant under insertion.
+    ### Downstream, this is the structural fact that lets us prove available_key
+    ### is preserved by insertion (since available_key only inspects locations
+    ### and the dempty/dlst shape, which dlls_locs jointly captures).
+
+    declare dlls_locs : (S) [(DLst (Lst S))] -> (Lst Location)
+    assert dlls_locs_axioms := (fun [
+        (dlls_locs (dempty htl)) = empty
+        (dlls_locs (dlst lh lsts tail_dlls)) = (lst lh (dlls_locs tail_dlls))
+    ])
+
+    define insertNAt_preserves_locs :=
+        (forall dlls bucket n v .
+            (dlls_locs (insertNAt bucket n v dlls)) = (dlls_locs dlls))
+
+    by-induction insertNAt_preserves_locs {
+        (dempty htl) =>
+            pick-any bucket:N n:N v:'S
+            datatype-cases
+                ((dlls_locs (insertNAt bucket n v (dempty htl))) = (dlls_locs (dempty htl)))
+                on n
+            {
+                zero =>
+                    (!chain [
+                        (dlls_locs (insertNAt bucket zero v (dempty htl)))
+                        = (dlls_locs (dempty htl)) [insertNAt_axioms]
+                    ])
+              | (S n') =>
+                    (!chain [
+                        (dlls_locs (insertNAt bucket (S n') v (dempty htl)))
+                        = (dlls_locs (dempty htl)) [insertNAt_axioms]
+                    ])
+            }
+      | (dlst lh lsts tail_dlls) =>
+            let { IH := (forall bucket n v .
+                            (dlls_locs (insertNAt bucket n v tail_dlls)) = (dlls_locs tail_dlls)) }
+            pick-any bucket:N n:N v:'S
+            datatype-cases
+                ((dlls_locs (insertNAt bucket n v (dlst lh lsts tail_dlls))) =
+                 (dlls_locs (dlst lh lsts tail_dlls)))
+                on n
+            {
+                zero =>
+                    (!chain [
+                        (dlls_locs (insertNAt bucket zero v (dlst lh lsts tail_dlls)))
+                        = (dlls_locs (dlst lh lsts tail_dlls)) [insertNAt_axioms]
+                    ])
+              | (S n') =>
+                    datatype-cases
+                        ((dlls_locs (insertNAt bucket (S n') v (dlst lh lsts tail_dlls))) =
+                         (dlls_locs (dlst lh lsts tail_dlls)))
+                        on bucket
+                    {
+                        zero =>
+                            let { ih := (!uspec* IH [zero n' v]) }
+                            (!chain [
+                                (dlls_locs (insertNAt zero (S n') v (dlst lh lsts tail_dlls)))
+                                = (dlls_locs (dlst lh (lst v lsts)
+                                                (insertNAt zero n' v tail_dlls)))   [insertNAt_axioms]
+                                = (lst lh (dlls_locs (insertNAt zero n' v tail_dlls))) [dlls_locs_axioms]
+                                = (lst lh (dlls_locs tail_dlls))                       [ih]
+                                = (dlls_locs (dlst lh lsts tail_dlls))                 [dlls_locs_axioms]
+                            ])
+                      | (S bucket') =>
+                            let { ih := (!uspec* IH [bucket' (S n') v]) }
+                            (!chain [
+                                (dlls_locs (insertNAt (S bucket') (S n') v
+                                                (dlst lh lsts tail_dlls)))
+                                = (dlls_locs (dlst lh lsts
+                                                (insertNAt bucket' (S n') v tail_dlls))) [insertNAt_axioms]
+                                = (lst lh (dlls_locs
+                                            (insertNAt bucket' (S n') v tail_dlls)))     [dlls_locs_axioms]
+                                = (lst lh (dlls_locs tail_dlls))                          [ih]
+                                = (dlls_locs (dlst lh lsts tail_dlls))                    [dlls_locs_axioms]
+                            ])
+                    }
+            }
+    }
+
+    # Corollary: insertDPrList (= two compositions of insertNAt) preserves
+    # the list of bucket head-locations.
+    define insertDPrList_preserves_locs :=
+        (forall bucket rv v dlls .
+            (dlls_locs (insertDPrList bucket rv v dlls)) = (dlls_locs dlls))
+    conclude insertDPrList_preserves_locs
+        pick-any bucket rv v dlls
+            let {
+                inner_eq := (!uspec* insertNAt_preserves_locs [dlls bucket (S rv) v]);
+                outer_eq := (!uspec* insertNAt_preserves_locs
+                                    [(insertNAt bucket (S rv) v dlls)
+                                     zero
+                                     (countWraps bucket (S rv) dlls)
+                                     v])
+            }
+            (!chain [
+                (dlls_locs (insertDPrList bucket rv v dlls))
+                = (dlls_locs (insertNAt zero (countWraps bucket (S rv) dlls) v
+                                (insertNAt bucket (S rv) v dlls)))           [insertDPrList_axioms]
+                = (dlls_locs (insertNAt bucket (S rv) v dlls))               [outer_eq]
+                = (dlls_locs dlls)                                            [inner_eq]
+            ])
 
     ### -----------------------------------------------
     ### in
@@ -399,8 +515,218 @@ module DL_L_S {
                 (assume false
                     (!from-false (in bucket rv (initDPrList f htl lsts) (initDPrList f htl lsts) v)))
             )
-            
-    
+
+    ### -----------------------------------------------
+    ### G1: in_after_insert_self (full proof, factored through helpers)
+    ###
+    ### After insertDPrList at bucket=0 with any rv into a non-empty dlls, the
+    ### value v is `in` the result at bucket 0. The proof is factored into
+    ### two helpers:
+    ###   in_head_v_true:                  if the head bucket's lsts already
+    ###                                    starts with v, `in zero rv` finds v
+    ###                                    immediately for any rv.
+    ###   in_after_insertNAt_zero_with_v_head:
+    ###                                    insertNAt zero w v preserves the
+    ###                                    "head starts with v" structure (it
+    ###                                    only ever prepends more v's at the
+    ###                                    head), so the previous lemma still
+    ###                                    applies to its output.
+    ### G1 at bucket=0 then follows by unfolding insertDPrList into a chain
+    ### through insertNAt and applying the second helper at w = countWraps...
+    ###
+    ### Full G1 over arbitrary bucket would proceed by induction on bucket
+    ### (mirroring in_init_false_aux's pattern), but the inductive step
+    ### requires a more general statement than the base case provides — the
+    ### "tail of mod_dlls" differs from `insertDPrList bucket' rv v tail` by
+    ### exactly one wrap-prepend at position 0 whenever the wrap count is
+    ### positive. Deferred; bucket=0 is the case query_aux actually exercises
+    ### when bucket = (hf at v) and the hash hits the front of the bucket list.
+
+    # Helper 1: a dlls whose head bucket starts with v is always `in`-findable
+    # at bucket 0, regardless of rv (case-split on rv).
+    define in_head_v_true :=
+        (forall rv lh lsts1 tail_dlls o_dlls v .
+            (in zero rv (dlst lh (lst v lsts1) tail_dlls) o_dlls v))
+    datatype-cases in_head_v_true {
+        zero =>
+            pick-any lh:Location lsts1:(Lst 'S) tail_dlls:(DLst (Lst 'S))
+                     o_dlls:(DLst (Lst 'S)) v:'S
+                let {
+                    vv := (!reflex v);
+                    or_form := (!either vv (Lst.in v lsts1));
+                    head_in := (!chain-> [
+                        or_form ==> (Lst.in v (lst v lsts1)) [Lst.In.in-lst-axiom]
+                    ])
+                }
+                (!chain-> [
+                    head_in
+                    ==> (in zero zero (dlst lh (lst v lsts1) tail_dlls) o_dlls v) [in_axioms]
+                ])
+      | (S rv') =>
+            pick-any lh:Location lsts1:(Lst 'S) tail_dlls:(DLst (Lst 'S))
+                     o_dlls:(DLst (Lst 'S)) v:'S
+                let {
+                    vv := (!reflex v);
+                    or_form := (!either vv (Lst.in v lsts1));
+                    head_in := (!chain-> [
+                        or_form ==> (Lst.in v (lst v lsts1)) [Lst.In.in-lst-axiom]
+                    ])
+                }
+                # The (S rv)/dlst conditional axiom collapses to `<==> true`
+                # under head_in; extract the in-form via propositional tautology.
+                (!chain-> [
+                    head_in
+                    ==> ((in zero (S rv') (dlst lh (lst v lsts1) tail_dlls) o_dlls v)
+                            <==> true)                                        [in_axioms]
+                    ==> (in zero (S rv') (dlst lh (lst v lsts1) tail_dlls) o_dlls v)
+                                                                              [prop-taut]
+                ])
+    }
+
+    # Helper 2: applying insertNAt zero w v to a dlls whose head already starts
+    # with v keeps the head starting with v, so `in zero rv` still finds v.
+    # Case-split on w (the wrap count).
+    define in_after_insertNAt_zero_with_v_head :=
+        (forall w rv lh lsts1 tail_dlls o_dlls v .
+            (in zero rv (insertNAt zero w v (dlst lh (lst v lsts1) tail_dlls)) o_dlls v))
+    datatype-cases in_after_insertNAt_zero_with_v_head {
+        zero =>
+            pick-any rv lh lsts1 tail_dlls o_dlls v
+                let {
+                    unfold := (!chain [
+                        (insertNAt zero zero v (dlst lh (lst v lsts1) tail_dlls))
+                        = (dlst lh (lst v lsts1) tail_dlls) [insertNAt_axioms]
+                    ]);
+                    head_in := (!uspec* in_head_v_true [rv lh lsts1 tail_dlls o_dlls v])
+                }
+                (!chain<- [
+                    (in zero rv (insertNAt zero zero v (dlst lh (lst v lsts1) tail_dlls)) o_dlls v)
+                    <== (in zero rv (dlst lh (lst v lsts1) tail_dlls) o_dlls v) [unfold]
+                    <== true [head_in]
+                ])
+      | (S w') =>
+            pick-any rv lh lsts1 tail_dlls o_dlls v
+                let {
+                    unfold := (!chain [
+                        (insertNAt zero (S w') v (dlst lh (lst v lsts1) tail_dlls))
+                        = (dlst lh (lst v (lst v lsts1)) (insertNAt zero w' v tail_dlls))
+                            [insertNAt_axioms]
+                    ]);
+                    head_in := (!uspec* in_head_v_true
+                                       [rv lh (lst v lsts1) (insertNAt zero w' v tail_dlls)
+                                        o_dlls v])
+                }
+                (!chain<- [
+                    (in zero rv (insertNAt zero (S w') v (dlst lh (lst v lsts1) tail_dlls))
+                                o_dlls v)
+                    <== (in zero rv (dlst lh (lst v (lst v lsts1)) (insertNAt zero w' v tail_dlls))
+                                    o_dlls v)                          [unfold]
+                    <== true [head_in]
+                ])
+    }
+
+    # G1 (bucket=0): after insertDPrList at bucket 0 with any rv into a
+    # non-empty dlls, `in zero rv` finds v at bucket 0.
+    define in_after_insert_self_bucket_zero :=
+        (forall rv lh lsts tail_dlls v .
+            (in zero rv (insertDPrList zero rv v (dlst lh lsts tail_dlls))
+                        (insertDPrList zero rv v (dlst lh lsts tail_dlls)) v))
+    conclude in_after_insert_self_bucket_zero
+        pick-any rv lh lsts tail_dlls v
+            let {
+                # Unfold insertDPrList zero rv v (dlst lh lsts tail_dlls) into the
+                # form insertNAt zero (countWraps ...) v (dlst lh (lst v lsts) ...).
+                mod_eq := (!chain [
+                    (insertDPrList zero rv v (dlst lh lsts tail_dlls))
+                    = (insertNAt zero (countWraps zero (S rv) (dlst lh lsts tail_dlls)) v
+                        (insertNAt zero (S rv) v (dlst lh lsts tail_dlls)))      [insertDPrList_axioms]
+                    = (insertNAt zero (countWraps zero rv tail_dlls) v
+                        (insertNAt zero (S rv) v (dlst lh lsts tail_dlls)))      [countWraps_axioms]
+                    = (insertNAt zero (countWraps zero rv tail_dlls) v
+                        (dlst lh (lst v lsts) (insertNAt zero rv v tail_dlls)))  [insertNAt_axioms]
+                ]);
+                # Instantiate helper 2 with w = countWraps zero rv tail_dlls,
+                # lsts1 = lsts, tail_dlls = (insertNAt zero rv v tail_dlls),
+                # o_dlls = the modified dlls itself.
+                helper := (!uspec* in_after_insertNAt_zero_with_v_head
+                                  [(countWraps zero rv tail_dlls)
+                                   rv lh lsts (insertNAt zero rv v tail_dlls)
+                                   (insertDPrList zero rv v (dlst lh lsts tail_dlls))
+                                   v])
+            }
+            (!chain<- [
+                (in zero rv (insertDPrList zero rv v (dlst lh lsts tail_dlls))
+                            (insertDPrList zero rv v (dlst lh lsts tail_dlls)) v)
+                <== (in zero rv
+                            (insertNAt zero (countWraps zero rv tail_dlls) v
+                                (dlst lh (lst v lsts) (insertNAt zero rv v tail_dlls)))
+                            (insertDPrList zero rv v (dlst lh lsts tail_dlls)) v)   [mod_eq]
+                <== true [helper]
+            ])
+
+    ### -----------------------------------------------
+    ### Full G1 (general bucket): status and proof obligation
+    ###
+    ### The natural statement is:
+    ###
+    ###     forall dlls bucket rv v .
+    ###         [bucket < size(dlls), rv+1 <= size(dlls)] ==>
+    ###         (in bucket rv (insertDPrList bucket rv v dlls)
+    ###                       (insertDPrList bucket rv v dlls) v)
+    ###
+    ### Without the `bucket < size(dlls)` precondition the lemma is actually
+    ### false: for bucket=1, rv=0, dlls=(dlst lh lsts (dempty htl)), the
+    ### query `in 1 0 ...` walks to the dempty terminus (not a real bucket)
+    ### and returns false, while the insert wraps `v` back to bucket 0 where
+    ### the query never looks.
+    ###
+    ### A full proof therefore needs either (a) a `size:(DLst (Lst S)) -> N`
+    ### function plus an `<` predicate to state and propagate the precondition
+    ### through bucket-induction, or (b) the lemma re-stated with a recursive
+    ### "depth-witness" precondition like `tail_dlls = (dlst lh' lsts' tail')`
+    ### unfolded `bucket` levels. Both are mechanically tractable but each
+    ### would add a non-trivial chunk of infrastructure. For the moment the
+    ### bucket=0 case above is the version actually exercised by query_aux
+    ### when the hash function maps v to the start of the bucket list; the
+    ### general case is left as a TODO.
+    ###
+    ### Inductive structure (informal sketch):
+    ###   induct on bucket;
+    ###   base bucket=0: in_after_insert_self_bucket_zero (proved above);
+    ###   step bucket=(S bucket'): unfold insertDPrList to expose the
+    ###     `(dlst lh ? (insertNAt bucket' (S rv) v tail))` structure, apply
+    ###     the (S bucket)/dlst axiom of `in` to drop one bucket, and recurse
+    ###     into the tail via IH — provided tail itself satisfies the depth
+    ###     precondition, which is exactly the recursive obligation discussed
+    ###     above.
+
+    ### -----------------------------------------------
+    ### G2: in_after_insert_other (TODO — asserted, not yet proved)
+    ###
+    ### When v ≠ v0, inserting v0 into dlls leaves the result of `in` for v
+    ### unchanged. Stated for the diagonal `o_dlls = dlls` case, which is
+    ### the form `query_aux` exercises (cf. dhtable_mateo.ath:148-153).
+    ###
+    ### Proof sketch (deferred — fixes.txt item 4): structural induction on
+    ### dlls with an inner case-split on whether the query's `bucket0` falls
+    ### inside the insert's rv+1-window starting at `bucket` (with wrap).
+    ###   * Inside the window: insertDPrList prepends v0 to the bucket;
+    ###     since v ≠ v0 the (Lst.in v _) value is unchanged, so each `in`
+    ###     conditional branch evaluates identically before and after.
+    ###   * Outside the window: the bucket is untouched by insertDPrList,
+    ###     so the equivalence falls out of the recursive call on the tail.
+    # TODO: discharge by structural induction on dlls with the inner
+    # window-membership case-split described above.
+    define in_after_insert_other :=
+        (forall bucket bucket0 rv v v0 dlls .
+            (~ (v = v0)) ==>
+            ((in bucket0 rv (insertDPrList bucket rv v0 dlls)
+                            (insertDPrList bucket rv v0 dlls) v)
+             <==>
+             (in bucket0 rv dlls dlls v)))
+    assert in_after_insert_other
+
+
     ### ---------------------------------------------------------------
     ### available_key
     ### Purpose:
@@ -437,6 +763,70 @@ module DL_L_S {
             (available_key bucket rv o_dlls o_dlls)
     ])
 
+    ### -----------------------------------------------
+    ### G3: available_key invariance under insertion
+    ###
+    ### available_key only inspects head-locations (lh) and the dempty/dlst
+    ### shape of its dlls inputs (cf. available_key_axioms above — lsts never
+    ### appears on any RHS). Combined with insertDPrList_preserves_locs (step 1),
+    ### this means insertDPrList cannot change which buckets are considered
+    ### "available" for a given (bucket, rv) query, which is what query_aux
+    ### branches on inside dhtable_mateo.ath.
+    ###
+    ### We factor the result through an intermediate lemma stating that
+    ### available_key depends on its dlls / o_dlls arguments only through
+    ### their dlls_locs. The G3 corollary is then a one-step instantiation.
+    ###
+    ### The intermediate is asserted for now (see TODO). The full proof is a
+    ### structural induction on dlls1 (with parallel structure derived for dlls2
+    ### via dlls_locs equality) and nested case-splits on B, R, and o_dlls's
+    ### structure — concretely tractable but tedious; deferring keeps momentum
+    ### toward the DHT correctness theorems while leaving an explicit proof
+    ### obligation in the assumption base.
+
+    # Intermediate: available_key sees its dlls / o_dlls only through dlls_locs.
+    # TODO: discharge by nested structural induction; presently a conjecture.
+    define available_key_dlls_locs_inv :=
+        (forall dlls1 dlls2 .
+            (dlls_locs dlls1) = (dlls_locs dlls2) ==>
+            forall o_dlls1 o_dlls2 .
+                (dlls_locs o_dlls1) = (dlls_locs o_dlls2) ==>
+                forall B R .
+                    (available_key B R dlls1 o_dlls1) <==>
+                    (available_key B R dlls2 o_dlls2))
+    assert available_key_dlls_locs_inv
+
+    # G3 corollary: available_key is invariant under insertDPrList when both
+    # arguments are taken to be the same modified dlls (which is exactly the
+    # shape that query_aux uses: `available_key (hf at v) rv dlls dlls`).
+    define available_key_insert_invariant :=
+        (forall bucket rv v dlls B R .
+            (available_key B R (insertDPrList bucket rv v dlls) (insertDPrList bucket rv v dlls)) <==>
+            (available_key B R dlls dlls))
+    conclude available_key_insert_invariant
+        pick-any bucket:N rv:N v:'S dlls:(DLst (Lst 'S)) B:N R:N
+            let {
+                locs_eq := (!uspec* insertDPrList_preserves_locs [bucket rv v dlls]);
+                # locs_eq : (dlls_locs (insertDPrList bucket rv v dlls)) = (dlls_locs dlls)
+
+                # Specialize the intermediate to dlls1 = insertDPrList(..), dlls2 = dlls,
+                # discharge the first dlls-locs antecedent.
+                step_dlls := (!mp
+                                (!uspec* available_key_dlls_locs_inv
+                                        [(insertDPrList bucket rv v dlls) dlls])
+                                locs_eq);
+                # step_dlls : forall o_dlls1 o_dlls2 . ... ==> forall B R . ...
+
+                # Specialize o_dlls1 = insertDPrList(..), o_dlls2 = dlls, discharge.
+                step_o := (!mp
+                                (!uspec* step_dlls
+                                        [(insertDPrList bucket rv v dlls) dlls])
+                                locs_eq)
+                # step_o : forall B R . available_key B R (insertDPrList..) (insertDPrList..) <==>
+                #                       available_key B R dlls dlls
+            }
+            (!uspec* step_o [B R])
+
 
     ### ---------------------------------------------------------------
     ### values
@@ -461,13 +851,46 @@ module DL_L_S {
     define [null insert \/] := [Set.null Set.insert Set.\/]
     assert values_axioms := (fun [
         (values (dempty htl) (null) false) = NONE
-        (values (dempty htl) (null) true)  = (SOME null) 
+        (values (dempty htl) (null) true)  = (SOME null)
         (values (dempty htl) (insert s sets) b) = (SOME (insert s sets))
         (values (dlst lh lsts tail_dlls) sets b) = [
             (values tail_dlls sets b) when (~ Location.alive lh)
             (values tail_dlls (\/ (l2s lsts) sets ) true) when (Location.alive lh)
         ]
     ])
+
+    ### -----------------------------------------------
+    ### Values analogue of (G1) / (G2) (TODO — asserted, not yet proved)
+    ###
+    ### Inserting v0 into dlls extends the value-set returned by `values` by
+    ### Set.insert v0, provided that at least one bucket in the insert's
+    ### rv+1-window is alive (i.e. when available_key holds on the window),
+    ### so v0 actually lands in an alive bucket and gets unioned into the
+    ### accumulator. This is the lemma that drives the insert-side of
+    ### values_functional_correctness in dhtable_mateo.ath: combined with
+    ### available_key_insert_invariant (G3), it bridges
+    ###     `values (rep (dht_insert dht v0))`
+    ### with
+    ###     `Set.insert v0 (values (rep dht))`
+    ### under `available dht`.
+    ###
+    ### Proof sketch (deferred — fixes.txt item 5): structural induction on
+    ### dlls, threading the accumulator `sets` and the boolean flag `b`
+    ### through the recursion. Inside the insert's window an alive bucket
+    ### contributes `(l2s (lst v0 lsts)) = Set.insert v0 (l2s lsts)`; the
+    ### set union absorbs the extra v0 element. Outside the window the
+    ### bucket is untouched and the recursive call propagates the invariant.
+    ### Likely needs a strengthened helper that abstracts over the (sets, b)
+    ### pair, analogous to the dlls/o_dlls strengthening used in
+    ### in_init_false.
+    # TODO: discharge by structural induction on dlls with a strengthened
+    # helper that abstracts over the accumulator and boolean-flag arguments.
+    define values_after_insert :=
+        (forall bucket rv v0 dlls s0 .
+            (((available_key bucket rv dlls dlls) &
+              ((values dlls Set.null false) = (SOME s0))) ==>
+             ((values (insertDPrList bucket rv v0 dlls) Set.null false) = (SOME (Set.insert v0 s0)))))
+    assert values_after_insert
 
 }
 
