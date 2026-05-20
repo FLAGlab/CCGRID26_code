@@ -48,28 +48,93 @@ module DL_L_S {
                         | (exists l tail_l . (initDPrList f htl lsts) = (dlst l empty (initDPrList f htl tail_l) ))))
 
     ### -----------------------------------------------
-    ### insertDPrList
+    ### insertNAt
     ### Purpose:
-    ###     Insert a value `v` into the bucket located at index `n` of a distributed list
-    ###     of buckets. The function assumes that `n` is strictly smaller than the number
-    ###     of buckets, and it performs a single-bucket insertion TODO: it should add the 
-    ###     corresponding replicas
+    ###     Helper that prepends `v` to the buckets at positions
+    ###     [bucket, bucket+1, ..., bucket+n-1] of `dlls`. Insertions whose target
+    ###     position lies past the end of the list are silently dropped; i.e. this
+    ###     helper does NOT wrap around. Callers compose it with `countWraps`
+    ###     (below) to obtain the full modulo semantics.
     ###
     ### Parameters:
-    ###     n::N                 : natural number indicating which bucket to update
-    ###     v::N                 : value of type S to be inserted
-    ###     dlls::(DLst (Lst S)) : distributed list representing buckets of values
+    ###     bucket::N            : position of the first insertion.
+    ###     n::N                 : number of consecutive insertions to perform.
+    ###     v::S                 : value to be inserted.
+    ###     dlls::(DLst (Lst S)) : distributed list to update.
+    declare insertNAt: (S) [N N S (DLst (Lst S))] -> (DLst (Lst S))
+    assert insertNAt_axioms := (fun [
+            (insertNAt bucket zero v dlls) = dlls
+            (insertNAt bucket (S n) v (dempty htl)) = (dempty htl)
+            (insertNAt zero (S n) v (dlst lh lsts tail_dlls)) =
+                (dlst lh (lst v lsts) (insertNAt zero n v tail_dlls))
+            (insertNAt (S bucket) (S n) v (dlst lh lsts tail_dlls)) =
+                (dlst lh lsts (insertNAt bucket (S n) v tail_dlls))
+        ])
+
+    ### -----------------------------------------------
+    ### countWraps
+    ### Purpose:
+    ###     Helper that returns how many of `n` consecutive insertions starting at
+    ###     position `bucket` would fall past the end of `dlls` and therefore need
+    ###     to wrap around to the front of the original list. Equal to
+    ###     max(0, bucket + n - size(dlls)).
+    ###
+    ### Parameters:
+    ###     bucket::N            : position of the first insertion.
+    ###     n::N                 : number of consecutive insertions to consider.
+    ###     dlls::(DLst (Lst S)) : distributed list whose length determines wrap.
+    declare countWraps: (S) [N N (DLst (Lst S))] -> N
+    assert countWraps_axioms := (fun [
+            (countWraps bucket zero dlls) = zero
+            (countWraps bucket (S n) (dempty htl)) = (S n)
+            (countWraps zero (S n) (dlst lh lsts tail_dlls)) =
+                (countWraps zero n tail_dlls)
+            (countWraps (S bucket) (S n) (dlst lh lsts tail_dlls)) =
+                (countWraps bucket (S n) tail_dlls)
+        ])
+
+    ### -----------------------------------------------
+    ### insertDPrList
+    ### Purpose:
+    ###     Insert a value `v` into the bucket at position `bucket` and into the
+    ###     next `rv` replica buckets, with wrap-around modulo the size of the
+    ###     distributed list. This realises the paper's replication semantics:
+    ###     every value is replicated across (rv+1) consecutive buckets, indices
+    ###     being taken modulo the number of buckets so that positions past the
+    ###     end wrap back to the front. The (rv+1) buckets touched here are
+    ###     exactly the (rv+1) buckets that `in` and `available_key` traverse on
+    ###     the read side, closing the soundness gap noted in fixes.txt (A2).
+    ###
+    ### Parameters:
+    ###     bucket::N            : primary bucket index where insertion begins.
+    ###                            Assumed to satisfy bucket < size(dlls).
+    ###     rv::N                : replication factor; insertion writes to rv+1
+    ###                            buckets in total. Assumed to satisfy
+    ###                            rv + 1 <= size(dlls) (no more replicas than
+    ###                            buckets, matching the read-side traversal).
+    ###     v::S                 : value of type S to be inserted.
+    ###     dlls::(DLst (Lst S)) : distributed list representing buckets of values.
     ###
     ### Returns:
-    ###     A new distributed list where the bucket at position `n` has been updated by
-    ###     prepending the value `v` to its local list of elements.
-    declare insertDPrList: (S) [N S (DLst (Lst S))] -> (DLst (Lst S))
-    assert  insertDPrList_axioms := (fun [
-            (insertDPrList zero v (dlst lh (lst s tail_s) tail_dlls)) =
-                (dlst lh (lst v (lst s tail_s)) tail_dlls)
-
-            (insertDPrList (S n) v (dlst lh lsts tail_dlls)) =
-                (dlst lh lsts (insertDPrList n v tail_dlls))
+    ###     A new distributed list where `v` has been prepended to every bucket
+    ###     at position (bucket + i) mod size(dlls), for i = 0, 1, ..., rv.
+    ###     Buckets not in this set are left unchanged.
+    ###
+    ### Implementation:
+    ###     The function is defined in two stages via the helpers above:
+    ###         (1) `insertNAt bucket (S rv) v dlls` performs all the insertions
+    ###             whose target lies within [bucket, size(dlls)), truncating at
+    ###             the end of the list.
+    ###         (2) `countWraps bucket (S rv) dlls` counts how many requested
+    ###             insertions overflow past the end and therefore need to wrap.
+    ###         (3) A second `insertNAt zero <wrap-count> v _` on the partially
+    ###             modified list applies the wrapped insertions at the front,
+    ###             completing the modulo semantics.
+    declare insertDPrList: (S) [N N S (DLst (Lst S))] -> (DLst (Lst S))
+    assert insertDPrList_axioms := (fun [
+            (insertDPrList bucket rv v dlls) =
+                (insertNAt zero (countWraps bucket (S rv) dlls) v
+                    (insertNAt bucket (S rv) v dlls))
         ])
     
     ### -----------------------------------------------

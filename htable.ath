@@ -1,6 +1,6 @@
 load "nat-plus"
 load "pair"
-load "algebra/function"
+load "function"
 load "lst-in"
 load "lst-toset"
 
