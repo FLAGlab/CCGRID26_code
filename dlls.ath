@@ -1,13 +1,15 @@
 load "lst-in"
 load "lst-toset"
 load "dlist.ath"
-# load "function.ath"
-# open Function
+load "function.ath"
+open Function
 module DL_L_S {
     define [f]     := [?f:(fn 'S N)]
     define [b]     := [?b:Boolean]
     define [sets]  := [?sets:(Set.Set 'S)]
-    define [lsts tail_s]  := [?lsts:(Lst 'S) ?tail_s:(Lst 'S)]
+    define [lsts lsts1 lsts2 tail_s]  := [?lsts:(Lst 'S) ?lsts1:(Lst 'S) ?lsts2:(Lst 'S) ?tail_s:(Lst 'S)]
+    define [tail_l1 tail_l2] := [?tail_l1:(Lst Location) ?tail_l2:(Lst Location)]
+    define [l1 l2] := [?l1:Location ?l2:Location]
     define [s htv v head]          := [?s:'S ?htv:'S ?v:'S ?head:(Lst 'S)]
     define [n rv rv0 bucket]  := [?n:N ?rv:N ?rv0:N ?bucket:N]
     define [dlls tail_dlls o_dlls]  := 
@@ -99,127 +101,189 @@ module DL_L_S {
                     when (~ Lst.in htv lsts)
             ]
         (in zero (S rv) (dempty htl) o_dlls htv) <==> (in zero (S rv) o_dlls o_dlls htv)
-        (in (S bucket) rv dlls o_dlls htv) <==> (in bucket rv dlls o_dlls htv) 
+        (in (S bucket) rv (dlst lh lsts tail_dlls) o_dlls htv) <==>
+            (in bucket rv tail_dlls o_dlls htv)
+        (in (S bucket) rv (dempty htl) o_dlls htv) <==>
+            (in bucket rv o_dlls o_dlls htv)
         (in bucket rv dlls (dempty htl) htv) <==> false
     ])
     
-    define in_init_false_lsts := 
-        (forall  lsts f v htl . 
-            (~ in zero zero (initDPrList f htl lsts) (initDPrList f htl lsts) v ))
+    # Generalized: dlls and o_dlls are allowed to be two *different* init lists.
+    # This is the strengthening that lets the IH fit at every recursion step;
+    # the original 1-list lemma (in_init_false) follows as a corollary below.
+    define in_init_false_lsts :=
+        (forall lsts1 lsts2 f v htl .
+            (~ in zero zero (initDPrList f htl lsts1) (initDPrList f htl lsts2) v))
     by-induction in_init_false_lsts {
         empty =>
-        pick-any f v htl
+            pick-any lsts2 f v htl
             let {
-                predicate := (in zero zero (initDPrList f htl empty) (initDPrList f htl empty) v);
-                init_empty_case := (!chain [ (initDPrList f htl empty) 
-                                            = (dempty htl) [initDPrList_axioms] ]) ;
-                in_false :=
-                    (!chain [ 
-                        predicate
-                        ==> (in zero zero (dempty htl) (initDPrList f htl empty) v)    [init_empty_case]
-                        ==> false                                                      [in_axioms]
-                    ])
+                init_empty := (!chain [ (initDPrList f htl empty)
+                                        = (dempty htl) [initDPrList_axioms] ])
             }
-            (!by-contradiction (~ predicate) in_false)
-        | (lst l0 tail_l) =>
-        # TODO: In this case I do not use the IH... this means that this proof can be done
-        # without by-induction?... I think that no, rather it should be done with
-        # datatype-cases
-        pick-any f v htl
-        let { 
-            predicate   := (in zero zero (initDPrList f htl (lst l0 tail_l)) (initDPrList f htl (lst l0 tail_l)) v);
-            init_lsts   := (!chain [ (initDPrList f htl (lst l0 tail_l)) 
-                                    = (dlst l0 empty (initDPrList f htl tail_l)) [initDPrList_axioms] ]);
-            in_false    := (!chain [
-                   predicate
-                ==> (in zero zero (dlst l0 empty (initDPrList f htl tail_l)) (dlst l0 empty (initDPrList f htl tail_l)) v) [init_lsts]
-                ==> (Lst.in v empty)                   [in_axioms]
-                ==> false                              [Lst.in_axioms]
-            ])}
-        (!by-contradiction (~predicate) in_false)
+            (!by-contradiction
+                (~ in zero zero (initDPrList f htl empty) (initDPrList f htl lsts2) v)
+                (!chain [
+                    (in zero zero (initDPrList f htl empty) (initDPrList f htl lsts2) v)
+                    ==> (in zero zero (dempty htl) (initDPrList f htl lsts2) v) [init_empty]
+                    ==> false                                                   [in_axioms]
+                ]))
+      | (lst l0 tail_l) =>
+            pick-any lsts2 f v htl
+            let {
+                init_lst := (!chain [ (initDPrList f htl (lst l0 tail_l))
+                                      = (dlst l0 empty (initDPrList f htl tail_l)) [initDPrList_axioms] ])
+            }
+            (!by-contradiction
+                (~ in zero zero (initDPrList f htl (lst l0 tail_l)) (initDPrList f htl lsts2) v)
+                (!chain [
+                    (in zero zero (initDPrList f htl (lst l0 tail_l)) (initDPrList f htl lsts2) v)
+                    ==> (in zero zero (dlst l0 empty (initDPrList f htl tail_l)) (initDPrList f htl lsts2) v) [init_lst]
+                    ==> (Lst.in v empty)                                                                     [in_axioms]
+                    ==> false                                                                                [Lst.in_axioms]
+                ]))
     }
 
-    define in_init_false_rv := 
-        (forall rv lsts f v htl . 
-            (~ in zero rv (initDPrList f htl lsts) (initDPrList f htl lsts) v ))
+    define in_init_false_rv :=
+        (forall rv lsts1 lsts2 f v htl .
+            (~ in zero rv (initDPrList f htl lsts1) (initDPrList f htl lsts2) v))
     by-induction in_init_false_rv {
         zero =>
-        pick-any lsts f v htl
-            (!chain<- [
-                (~ in zero zero (initDPrList f htl lsts) (initDPrList f htl lsts) v )
-                <== true [in_init_false_lsts]
-            ])
-        | (S rv0) =>
-        pick-any lsts f v htl
-        (!cases (!uspec* initDPrList_characterization [f htl lsts])
-            assume  empty_dlst := ((initDPrList f htl lsts) = (dempty htl)) 
-            (!by-contradiction
-                (~ in zero (S rv0) (initDPrList f htl lsts) (initDPrList f htl lsts) v)
-                (!chain [ 
-                        (in zero (S rv0) (initDPrList f htl lsts) (initDPrList f htl lsts) v)
-                    ==> (in zero (S rv0) (initDPrList f htl lsts) (dempty htl) v) [empty_dlst]
-                    ==> false                                                     [in_axioms]
-                ]))
-            assume no_empty_dlst := 
-                (exists l tail_l . 
-                    (initDPrList f htl lsts) = (dlst l empty (initDPrList f htl tail_l)))
-            pick-witnesses l0 tail_l0 for no_empty_dlst init_characterization
+            pick-any lsts1 lsts2 f v htl
+                (!uspec* in_init_false_lsts [lsts1 lsts2 f v htl])
+      | (S rv0) =>
             let {
-                ih := (~ in zero rv0 (initDPrList f htl tail_l0) (initDPrList f htl lsts) v)}
-            (!by-contradiction
-                (~ in zero (S rv0) (initDPrList f htl lsts) (initDPrList f htl lsts) v)
-                (!chain [
-                        (in zero (S rv0) (initDPrList f htl lsts) (initDPrList f htl lsts) v)
-                    ==> (in zero (S rv0) (dlst l0 empty (initDPrList f htl tail_l0)) (initDPrList f htl lsts) v) [init_characterization]
-                    # This step is force... but the justification should be in_axioms,
-                    # just do not know at first glance how to make it work, this step does
-                    # not worry me
-                    ==> (in zero rv0 (initDPrList f htl tail_l0) (initDPrList f htl lsts) v) [force]
-                    # This is the step that really worries me, in theory the justification
-                    # should be ih (Line 141) but that is not quiet the ih for this
-                    # induction. Thus, is there a way to make this work? or what should I do?
-                    ==> false                                                                [force]
-                ])
+                IH := (forall lsts1 lsts2 f v htl .
+                        (~ in zero rv0 (initDPrList f htl lsts1) (initDPrList f htl lsts2) v))
+            }
+            pick-any lsts1 lsts2 f v htl
+            # Bring (~ Lst.in v empty) into the assumption base so the
+            # conditional (S rv)/dlst axiom selects the second branch.
+            let {
+                not_in_v_empty := (!chain<- [(~ Lst.in v empty) <== true [Lst.In.in-empty-axiom]])
+            }
+            (!cases (!uspec* initDPrList_characterization [f htl lsts1])
+                # Case A: init lsts1 = dempty
+                assume empty_lsts1 := ((initDPrList f htl lsts1) = (dempty htl))
+                (!cases (!uspec* initDPrList_characterization [f htl lsts2])
+                    # Subcase A1: init lsts2 also dempty -> falls out of axiom 6
+                    assume empty_lsts2 := ((initDPrList f htl lsts2) = (dempty htl))
+                    (!by-contradiction
+                        (~ in zero (S rv0) (initDPrList f htl lsts1) (initDPrList f htl lsts2) v)
+                        (!chain [
+                            (in zero (S rv0) (initDPrList f htl lsts1) (initDPrList f htl lsts2) v)
+                            ==> (in zero (S rv0) (initDPrList f htl lsts1) (dempty htl) v) [empty_lsts2]
+                            ==> false                                                       [in_axioms]
+                        ]))
+                    # Subcase A2: init lsts2 = dlst l2 empty (init tail_l2); use wrap then IH
+                    assume nonempty_lsts2 :=
+                        (exists l tail_l .
+                            (initDPrList f htl lsts2) = (dlst l empty (initDPrList f htl tail_l)))
+                    pick-witnesses l2 tail_l2 for nonempty_lsts2 lsts2_char
+                    let {
+                        ih := (!uspec* IH [tail_l2 lsts2 f v htl])
+                    }
+                    (!by-contradiction
+                        (~ in zero (S rv0) (initDPrList f htl lsts1) (initDPrList f htl lsts2) v)
+                        (!chain [
+                            (in zero (S rv0) (initDPrList f htl lsts1) (initDPrList f htl lsts2) v)
+                            # Substitute the two init-positions independently.
+                            ==> (in zero (S rv0) (dempty htl) (initDPrList f htl lsts2) v)               [empty_lsts1]
+                            ==> (in zero (S rv0) (dempty htl) (dlst l2 empty (initDPrList f htl tail_l2)) v) [lsts2_char]
+                            # wrap-around: dlls = dempty, recurse with dlls = o_dlls
+                            ==> (in zero (S rv0) (dlst l2 empty (initDPrList f htl tail_l2))
+                                                 (dlst l2 empty (initDPrList f htl tail_l2)) v)            [in_axioms]
+                            # (S rv)/dlst conditional axiom; the not_in_v_empty fact in scope selects the false branch
+                            ==> (in zero rv0 (initDPrList f htl tail_l2)
+                                             (dlst l2 empty (initDPrList f htl tail_l2)) v)               [in_axioms]
+                            # Rewrite o_dlls back to (init lsts2) via lsts2_char (reverse direction)
+                            ==> (in zero rv0 (initDPrList f htl tail_l2) (initDPrList f htl lsts2) v)     [lsts2_char]
+                            # Combine with ih (in scope) to derive false propositionally
+                            ==> ((in zero rv0 (initDPrList f htl tail_l2) (initDPrList f htl lsts2) v) &
+                                 (~ in zero rv0 (initDPrList f htl tail_l2) (initDPrList f htl lsts2) v)) [augment]
+                            ==> false                                                                      [prop-taut]
+                        ]))
+                )
+                # Case B: init lsts1 = dlst l1 empty (init tail_l1); peel one bucket, then IH
+                assume nonempty_lsts1 :=
+                    (exists l tail_l .
+                        (initDPrList f htl lsts1) = (dlst l empty (initDPrList f htl tail_l)))
+                pick-witnesses l1 tail_l1 for nonempty_lsts1 lsts1_char
+                let {
+                    ih := (!uspec* IH [tail_l1 lsts2 f v htl])
+                }
+                (!by-contradiction
+                    (~ in zero (S rv0) (initDPrList f htl lsts1) (initDPrList f htl lsts2) v)
+                    (!chain [
+                        (in zero (S rv0) (initDPrList f htl lsts1) (initDPrList f htl lsts2) v)
+                        ==> (in zero (S rv0) (dlst l1 empty (initDPrList f htl tail_l1))
+                                             (initDPrList f htl lsts2) v)                          [lsts1_char]
+                        # (S rv)/dlst conditional axiom; not_in_v_empty selects false branch
+                        ==> (in zero rv0 (initDPrList f htl tail_l1) (initDPrList f htl lsts2) v)  [in_axioms]
+                        ==> ((in zero rv0 (initDPrList f htl tail_l1) (initDPrList f htl lsts2) v) &
+                             (~ in zero rv0 (initDPrList f htl tail_l1) (initDPrList f htl lsts2) v)) [augment]
+                        ==> false                                                                   [prop-taut]
+                    ]))
             )
-        )
     }
 
     define in_init_false_aux :=
-        (forall bucket rv lsts f v htl . 
-            (in bucket rv (initDPrList f htl lsts) (initDPrList f htl lsts) v ) ==> false)
+        (forall bucket rv lsts1 lsts2 f v htl .
+            (in bucket rv (initDPrList f htl lsts1) (initDPrList f htl lsts2) v) ==> false)
     by-induction in_init_false_aux {
         zero =>
-        pick-any rv lsts f v htl
-            (!chain<- [
-                    ((in zero rv (initDPrList f htl lsts) (initDPrList f htl lsts) v ) ==> false)
-                <== (~ in zero rv (initDPrList f htl lsts) (initDPrList f htl lsts) v )  
-                <== true [in_init_false_rv]
-            ])
-        | (S bucket) =>
-        let {
-            IH := ((in bucket rv (initDPrList f htl lsts) (initDPrList f htl lsts) v ) ==> false)
-         }
-        pick-any rv lsts f v htl
-        (!chain [
-                (in (S bucket) rv (initDPrList f htl lsts) (initDPrList f htl lsts) v )   
-            ==> (in bucket rv (initDPrList f htl lsts) (initDPrList f htl lsts) v )   [in_axioms]
-            # TODO: Note how here the justification must be [IH], but if I write it I got
-            #       an error. Why you might ask, well I just don't know...
-            ==> false                                                                 
-        ])
+            pick-any rv lsts1 lsts2 f v htl
+                (!chain<- [
+                    ((in zero rv (initDPrList f htl lsts1) (initDPrList f htl lsts2) v) ==> false)
+                    <== (~ in zero rv (initDPrList f htl lsts1) (initDPrList f htl lsts2) v)
+                    <== true [in_init_false_rv]
+                ])
+      | (S bucket) =>
+            let {
+                IH := (forall rv lsts1 lsts2 f v htl .
+                        (in bucket rv (initDPrList f htl lsts1) (initDPrList f htl lsts2) v) ==> false)
+            }
+            pick-any rv lsts1 lsts2 f v htl
+            (!cases (!uspec* initDPrList_characterization [f htl lsts1])
+                # Case A: init lsts1 = dempty -> wrap onto lsts2, then IH at smaller bucket
+                assume empty_lsts1 := ((initDPrList f htl lsts1) = (dempty htl))
+                let {
+                    ih := (!uspec* IH [rv lsts2 lsts2 f v htl])
+                }
+                (!chain [
+                    (in (S bucket) rv (initDPrList f htl lsts1) (initDPrList f htl lsts2) v)
+                    ==> (in (S bucket) rv (dempty htl) (initDPrList f htl lsts2) v)          [empty_lsts1]
+                    ==> (in bucket rv (initDPrList f htl lsts2) (initDPrList f htl lsts2) v) [in_axioms]
+                    ==> false                                                                [ih]
+                ])
+                # Case B: init lsts1 = dlst l1 empty (init tail_l1) -> advance dlls, then IH
+                assume nonempty_lsts1 :=
+                    (exists l tail_l .
+                        (initDPrList f htl lsts1) = (dlst l empty (initDPrList f htl tail_l)))
+                pick-witnesses l1 tail_l1 for nonempty_lsts1 lsts1_char
+                let {
+                    ih := (!uspec* IH [rv tail_l1 lsts2 f v htl])
+                }
+                (!chain [
+                    (in (S bucket) rv (initDPrList f htl lsts1) (initDPrList f htl lsts2) v)
+                    ==> (in (S bucket) rv (dlst l1 empty (initDPrList f htl tail_l1))
+                                          (initDPrList f htl lsts2) v)                     [lsts1_char]
+                    ==> (in bucket rv (initDPrList f htl tail_l1) (initDPrList f htl lsts2) v) [in_axioms]
+                    ==> false                                                                   [ih]
+                ])
+            )
     }
 
+    # 1-list corollary: keeps the original public statement unchanged.
     define in_init_false :=
-        (forall bucket rv lsts f v htl . 
-            (in bucket rv (initDPrList f htl lsts) (initDPrList f htl lsts) v ) <==> false )
+        (forall bucket rv lsts f v htl .
+            (in bucket rv (initDPrList f htl lsts) (initDPrList f htl lsts) v) <==> false)
     conclude in_init_false
         pick-any bucket rv lsts f v htl
-            (!equiv 
-                (!uspec* in_init_false_aux [bucket rv lsts f v htl])
-                (
-                    assume false
-                        (!from-false (in bucket rv (initDPrList f htl lsts) (initDPrList f htl lsts) v ))
-                )
+            (!equiv
+                (!uspec* in_init_false_aux [bucket rv lsts lsts f v htl])
+                (assume false
+                    (!from-false (in bucket rv (initDPrList f htl lsts) (initDPrList f htl lsts) v)))
             )
             
     
@@ -253,8 +317,10 @@ module DL_L_S {
             ]
         (available_key zero (S rv) (dempty htl) o_dlls) <==>
             (available_key zero (S rv) o_dlls o_dlls)
-        (available_key (S bucket) rv dlls o_dlls) <==>
-            (available_key bucket rv dlls o_dlls) 
+        (available_key (S bucket) rv (dlst lh lsts tail_dlls) o_dlls) <==>
+            (available_key bucket rv tail_dlls o_dlls)
+        (available_key (S bucket) rv (dempty htl) o_dlls) <==>
+            (available_key bucket rv o_dlls o_dlls)
     ])
 
 
