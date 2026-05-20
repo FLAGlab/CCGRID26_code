@@ -13,8 +13,7 @@ define [dpr-no-junk] := dpr-st-axioms
 define [dpr-lFirst dpr-vFirst dpr-lSecond dpr-vSecond] := dpr-se-axioms
 
 define [f1 f2 s1 s2 lf1 lf2 ls1 ls2] :=
-       [?f1:'S ?f2:'S ?s1:'T ?s2:'T
-	?lf1:Location ?lf2:Location ?ls1:Location ?ls2:Location]
+       [?f1:'S ?f2:'S ?s1:'T ?s2:'T ?lf1:Location ?lf2:Location ?ls1:Location ?ls2:Location]
 
 assert dpr-equal := (forall lf1 f1 ls1 s1 lf2 f2 ls2 s2 .
                        ((dpr lf1 f1 ls1 s1) = (dpr lf2 f2 ls2 s2) <==> 
@@ -61,24 +60,19 @@ datatype-cases correctness {
 
 # when is a pair equal to a distributed pair
 declare equal: (S,T) [(Pr S T) (DPr S T)] -> Boolean
-#cvarela: how to make the arguments interchangeable?
-
-assert* pr-dpr-equal-def := (((pr f1 s1) equal (dpr lf f2 ls s2)) <==>
-			     (f1 = f2 & s1 = s2))
+assert* pr-dpr-equal-def := (((pr f1 s1) equal (dpr lf f2 ls s2)) <==> (f1 = f2 & s1 = s2))
 
 # when are a pair and a distributed pair behaviorally equivalent
 declare pr-equiv: (S,T) [(Pr S T) (DPr S T)] -> Boolean
 
-assert* pr-dpr-equiv-def := (p pr-equiv dp <==>
-			      ((getFirst  dp) = SOME (first  p) &
-			       (getSecond dp) = SOME (second p)))
+assert* pr-dpr-equiv-def := (p pr-equiv dp <==> ((getFirst  dp) = SOME (first  p) & (getSecond dp) = SOME (second p)))
 
-define no-local-failures :=
-  (forall f s . ((pr f s) pr-equiv (dpr localhost f localhost s)))
+define no-local-failures := (forall f s . ((pr f s) pr-equiv (dpr localhost f localhost s)))
 
 conclude no-local-failures
   pick-any f:'S s:'T
-    let {1st := (!chain<- [
+    let {
+	1st := (!chain<- [
 		       ((getFirst (dpr localhost f localhost s))
 			= (SOME (first (pr f s))))
 		   <== ((getFirst (dpr localhost f localhost s))
@@ -103,7 +97,6 @@ assert* alive-dpr-def :=
 # an alive distributed pair is equivalent to its equal (non-distributed) pair.
 define pr-dpr-no-failures :=
   (forall p dp . ((p equal dp) & (alive-dpr dp)) ==> (p pr-equiv dp))
-#cvarela: if and only if?
 
 datatype-cases pr-dpr-no-failures {
 (p as (pr f1:'S s1:'T)) =>

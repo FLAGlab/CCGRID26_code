@@ -5,7 +5,8 @@ load "lst-toset"
 
 
 domain Operation
-datatype (Msg Content) :=  (msg op:Operation c:Content)
+# datatype (Msg Content) :=  (msg op:Operation c:Content)
+datatype (Msg Content) :=  (msg c:Content)
 datatype (Node Content) := (node id:N 
                                  state:(Set.Set Content)
                                  mailbox:(Lst (Msg Content))
@@ -15,11 +16,13 @@ module CRDT {
 
     define  [c] := [?c:'Content]
     define  [msg0] := [?msg0:(Msg 'Content)]
-    define  [state state0 state1] := [?state:(Set.Set 'Content) ?state0:(Set.Set 'Content)
-                                      ?state1:(Set.Set 'Content)]
-    define  [mailbox mailbox_tail mailbox0 mailbox1] 
+    define  [state s0 state0 s1 state1] := 
+                    [?state:(Set.Set 'Content)  ?s0:(Set.Set 'Content)
+                     ?state0:(Set.Set 'Content) ?s1:(Set.Set 'Content) ?state1:(Set.Set 'Content)]
+    define  [mailbox mailbox_tail mb0 mailbox0 mb1 mailbox1] 
             := [?mailbox:(Lst (Msg 'Content)) ?mailbox_tail:(Lst (Msg 'Content))
-                ?mailbox0:(Lst (Msg 'Content)) ?mailbox1:(Lst (Msg 'Content))] 
+                ?mb0:(Lst (Msg 'Content)) ?mailbox0:(Lst (Msg 'Content)) 
+                ?mb1:(Lst (Msg 'Content)) ?mailbox1:(Lst (Msg 'Content))] 
 
     define  [null insert \/] := [Set.null Set.insert Set.\/]
 
@@ -32,9 +35,13 @@ module CRDT {
     declare mailbox_equality: (Content) [(Lst (Msg Content)) (Lst (Msg Content))] -> Boolean
     assert* ((mailbox_equality mailbox0 mailbox1) <==> ((l2s mailbox0) = (l2s mailbox1)))
 
+    # This is a 'lema' it should be easy to proof...
+    assert* mailbox_equality_empty_characterization :=
+        ((mailbox_equality empty mailbox1) ==> (mailbox1 = empty))
+
     declare apply: (Content, State) [(Msg Content) State] -> State
     assert* apply_add_axiom :=
-        ((apply (msg add c) state) = ( (singleton c) \/ state))
+        ((apply (msg c) state) = ( (singleton c) \/ state))
     
     declare apply_mailbox: (Content, State) [(Lst (Msg Content)) State] -> State
     assert apply_mailbox_axioms :=
@@ -44,11 +51,30 @@ module CRDT {
                 = (apply_mailbox mailbox_tail (apply msg0 state))
         ])
     
-
+    # mismo estado inicial! <-- decir esto en el paper!
     define eventual_consistency :=
         ( forall mailbox0 mailbox1 state0 state1  .
             (mailbox_equality mailbox0 mailbox1) & (state0 = state1)
             ==>
             (apply_mailbox mailbox0  state0) = (apply_mailbox mailbox1 state1) 
         )
+
+
+    # pick-any state
+    # pick-any mb1 s0 s1
+
+    # by-induction eventual_consistency {
+    #     empty =>
+    #     pick-any mb1 s0 s1
+    #         assume h := ((mailbox_equality empty mb1) and (s0 = s1))
+    #             (!chain [
+    #                 (apply_mailbox empty s0)
+    #                 = s0                        [apply_mailbox_axioms]      
+    #                 = s1                        [h]
+    #                 = (apply_mailbox empty s1)  [apply_mailbox_axioms]
+    #                 = (apply_mailbox mb1 s1)    [mailbox_equality_empty_characterization] 
+    #             ])
+    #     | (lst c mailbox_tail) =>
+    # }
+        
 }
