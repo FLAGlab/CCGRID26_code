@@ -5,7 +5,7 @@ load "dpair.ath"
 structure (DHTable S) := (dht_empty  ll:(Lst Location) hf:(fn S N) rv:N htl:Location) |
                          (dht_insert (DHTable S) S)
 
-datatype (DHTRep S) := (dhtr hf:(fn S N) rv:N htl:Location (DLst (Lst S)))
+datatype (DHTRep S) := (dhtr hf:(fn S N) rv:N htl:Location buckets:(DLst (Lst S)))
 # rv must always be > 0
 
 
@@ -16,6 +16,11 @@ module DHTable {
 		    DL_L_S.available_key DL_L_S.in]
 
 	assert dht_st_axioms := (structure-axioms "DHTable")
+
+	# Each of this asserts gives axioms for each of the selectors of both data types
+	assert dht_se_axioms := (selector-axioms "DHTable")
+	assert dhtr_se_axioms := (selector-axioms "DHTable")
+
 	define [s s0] := [?s:(Set.Set 'S) ?s0:(Set.Set 'S)]
 	define [dht_no_conf dht_no_junk] := dht_st_axioms
 	define [v v0 v2]     := [?v:'S ?v0:'S ?v2:'S]

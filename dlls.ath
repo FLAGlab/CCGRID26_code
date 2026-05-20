@@ -136,7 +136,56 @@ module DL_L_S {
                 (insertNAt zero (countWraps bucket (S rv) dlls) v
                     (insertNAt bucket (S rv) v dlls))
         ])
-    
+
+    ### -----------------------------------------------
+    ### Totality witnesses for insertDPrList (addresses A3 in fixes.txt).
+    ### The original two-axiom insertDPrList left three cases unconstrained:
+    ###   (1) (insertDPrList zero v (dlst lh empty tail_dlls))   -- empty bucket
+    ###   (2) (insertDPrList zero v (dempty htl))                -- empty dlls
+    ###   (3) (insertDPrList (S n) v (dempty htl))               -- out of range
+    ### The new definition (with replication factor rv and helpers insertNAt /
+    ### countWraps) is total by construction: every constructor combination of
+    ### (N, N, DLst) is covered by the helper axioms, and the single equation
+    ### above applies for all inputs. The two lemmas below witness the resulting
+    ### behavior on the formerly-undefined inputs:
+    ###   insert_empty_bucket    -- insertion into an empty bucket prepends v.
+    ###   insert_into_empty_dlls -- insertion on an empty dlls is a no-op,
+    ###                             covering both (2) and (3).
+
+    define insert_empty_bucket :=
+        (forall lh tail_dlls v .
+            (insertDPrList zero zero v (dlst lh empty tail_dlls)) =
+                (dlst lh (lst v empty) tail_dlls))
+    conclude insert_empty_bucket
+        pick-any lh tail_dlls v
+        (!chain [
+            (insertDPrList zero zero v (dlst lh empty tail_dlls))
+            = (insertNAt zero (countWraps zero (S zero) (dlst lh empty tail_dlls)) v
+                (insertNAt zero (S zero) v (dlst lh empty tail_dlls)))       [insertDPrList_axioms]
+            = (insertNAt zero (countWraps zero zero tail_dlls) v
+                (insertNAt zero (S zero) v (dlst lh empty tail_dlls)))       [countWraps_axioms]
+            = (insertNAt zero zero v
+                (insertNAt zero (S zero) v (dlst lh empty tail_dlls)))       [countWraps_axioms]
+            = (insertNAt zero (S zero) v (dlst lh empty tail_dlls))          [insertNAt_axioms]
+            = (dlst lh (lst v empty) (insertNAt zero zero v tail_dlls))      [insertNAt_axioms]
+            = (dlst lh (lst v empty) tail_dlls)                              [insertNAt_axioms]
+        ])
+
+    define insert_into_empty_dlls :=
+        (forall bucket rv v htl .
+            (insertDPrList bucket rv v (dempty htl)) = (dempty htl))
+    conclude insert_into_empty_dlls
+        pick-any bucket rv v htl
+        (!chain [
+            (insertDPrList bucket rv v (dempty htl))
+            = (insertNAt zero (countWraps bucket (S rv) (dempty htl)) v
+                (insertNAt bucket (S rv) v (dempty htl)))                    [insertDPrList_axioms]
+            = (insertNAt zero (S rv) v
+                (insertNAt bucket (S rv) v (dempty htl)))                    [countWraps_axioms]
+            = (insertNAt zero (S rv) v (dempty htl))                         [insertNAt_axioms]
+            = (dempty htl)                                                    [insertNAt_axioms]
+        ])
+
     ### -----------------------------------------------
     ### in
     ### Purpose:
