@@ -61,7 +61,7 @@ module DHTable {
 	assert rep_axioms :=
 		(fun [
 			(rep (dht_empty ll hf rv htl)) = (dhtr hf rv htl (initDPrList hf htl ll))
-			(rep (dht_insert dht v)) = [(dhtr hf rv htl (insertDPrList (hf at v) v dlls))
+			(rep (dht_insert dht v)) = [(dhtr hf rv htl (insertDPrList (hf at v) rv v dlls))
 						when ((rep dht) = (dhtr hf rv htl dlls))]
 		])
 
@@ -85,7 +85,7 @@ module DHTable {
 			}
 			pick-witnesses hf2 rv2 htl2 dlls2 for ih rep_dt_def
 			let {
-				insert_dpr_list := (insertDPrList (hf2 at v) v dlls2);
+				insert_dpr_list := (insertDPrList (hf2 at v) rv2 v dlls2);
 				rep_dt := (!chain<- [
 					((rep (dht_insert dht1 v)) = (dhtr hf2 rv2 htl2 insert_dpr_list))
 					<== rep_dt_def   [rep_axioms]
