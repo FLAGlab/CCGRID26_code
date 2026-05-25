@@ -829,6 +829,41 @@ module DL_L_S {
 
 
     ### ---------------------------------------------------------------
+    ### no_consecutive_failures (replication invariant for the abstract)
+    ###
+    ### Captures the fault-tolerance hypothesis stated in the paper's
+    ### abstract: for a DHT with replication value `rv`, every key remains
+    ### available so long as no run of `(rv + 1)` consecutive bucket
+    ### locations is entirely dead — equivalently, starting from EVERY
+    ### bucket position the (rv + 1)-replica window contains at least one
+    ### alive location.
+    ###
+    ### The predicate is defined recursively on the distributed bucket
+    ### list `dlls`, asserting that the window opened at the current head
+    ### is alive (via `available_key zero rv ...`) and that the same
+    ### property holds on the tail. The `o_dlls` argument is threaded
+    ### through unchanged so that the inner `available_key` call can wrap
+    ### around the list when its rv+1-step walk runs past the end. In the
+    ### canonical use `no_consecutive_failures rv dlls dlls` (same list in
+    ### both slots), this reads as: "every contiguous (rv + 1)-window in
+    ### dlls, including those that wrap, contains at least one alive
+    ### bucket."
+    ###
+    ### Parameters:
+    ###     rv::N                  : replication value (window size = rv + 1).
+    ###     dlls::(DLst (Lst S))   : current suffix being checked.
+    ###     o_dlls::(DLst (Lst S)) : original list, used for wrap-around
+    ###                              inside `available_key`.
+    declare no_consecutive_failures: (S) [N (DLst (Lst S)) (DLst (Lst S))] -> Boolean
+    assert no_consecutive_failures_axioms := (fun [
+        (no_consecutive_failures rv (dempty htl) o_dlls) <==> true
+        (no_consecutive_failures rv (dlst lh lsts tail_dlls) o_dlls) <==>
+            ((available_key zero rv (dlst lh lsts tail_dlls) o_dlls) &
+             (no_consecutive_failures rv tail_dlls o_dlls))
+    ])
+
+
+    ### ---------------------------------------------------------------
     ### values
     ### Purpose:
     ###     Compute the set of all available values contained in a  distributed list of
