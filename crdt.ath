@@ -5,76 +5,340 @@ load "lst-toset"
 
 
 domain Operation
-# datatype (Msg Content) :=  (msg op:Operation c:Content)
-datatype (Msg Content) :=  (msg c:Content)
-datatype (Node Content) := (node id:N 
+datatype (Msg Content) :=  (msg op:Operation c:Content)
+datatype (Node Content) := (node id:N
                                  state:(Set.Set Content)
                                  mailbox:(Lst (Msg Content))
                                  location:Location)
 
 module CRDT {
 
-    define  [c] := [?c:'Content]
-    define  [msg0] := [?msg0:(Msg 'Content)]
-    define  [state s0 state0 s1 state1] := 
+    define  [c c0 c1] := [?c:'Content ?c0:'Content ?c1:'Content]
+    define  [msg0 msg1] := [?msg0:(Msg 'Content) ?msg1:(Msg 'Content)]
+    define  [state s0 state0 s1 state1] :=
                     [?state:(Set.Set 'Content)  ?s0:(Set.Set 'Content)
                      ?state0:(Set.Set 'Content) ?s1:(Set.Set 'Content) ?state1:(Set.Set 'Content)]
-    define  [mailbox mailbox_tail mb0 mailbox0 mb1 mailbox1] 
+    define  [mailbox mailbox_tail mb mb_tail mb0 mailbox0 mb1 mailbox1]
             := [?mailbox:(Lst (Msg 'Content)) ?mailbox_tail:(Lst (Msg 'Content))
-                ?mb0:(Lst (Msg 'Content)) ?mailbox0:(Lst (Msg 'Content)) 
-                ?mb1:(Lst (Msg 'Content)) ?mailbox1:(Lst (Msg 'Content))] 
+                ?mb:(Lst (Msg 'Content)) ?mb_tail:(Lst (Msg 'Content))
+                ?mb0:(Lst (Msg 'Content)) ?mailbox0:(Lst (Msg 'Content))
+                ?mb1:(Lst (Msg 'Content)) ?mailbox1:(Lst (Msg 'Content))]
 
     define  [null insert \/] := [Set.null Set.insert Set.\/]
+    define  [union-commutes union-associativity \/-idempotence] :=
+            [Set.union-commutes Set.union-associativity Set.\/-idempotence]
+
+    # Datatype axioms for Msg — needed by eventual_consistency to decompose
+    # an arbitrary message into its (op, content) constructor form without
+    # going through the selectors `op`/`c`, which are shadowed by the
+    # pattern-variable bindings above.
+    assert msg_dt_axioms := (datatype-axioms "Msg")
+    define [msg_no_conf msg_no_junk] := msg_dt_axioms
 
 
     declare add: Operation
 
     declare singleton: (Content) [Content] -> (Set.Set Content)
-    assert* ((singleton c) = (insert c null))
+    assert* singleton-def := ((singleton c) = (insert c null))
 
     declare mailbox_equality: (Content) [(Lst (Msg Content)) (Lst (Msg Content))] -> Boolean
-    assert* ((mailbox_equality mailbox0 mailbox1) <==> ((l2s mailbox0) = (l2s mailbox1)))
+    assert* mailbox_equality_def :=
+        ((mailbox_equality mailbox0 mailbox1) <==> ((l2s mailbox0) = (l2s mailbox1)))
 
-    # This is a 'lema' it should be easy to proof...
-    assert* mailbox_equality_empty_characterization :=
-        ((mailbox_equality empty mailbox1) ==> (mailbox1 = empty))
+    # mailbox_equality with the empty mailbox forces the other to be empty too.
+    # Case-analysis on mailbox1: the (lst hd tl) case is ruled out because the
+    # equality would force `Set.null = (Set.insert hd (l2s tl))`, contradicted
+    # by `hd in (insert hd _)` together with `~ (hd in null)` from Set.in-def.
+    define mailbox_equality_empty_characterization :=
+        (forall mb . (mailbox_equality empty mb) ==> (mb = empty))
 
-    declare apply: (Content, State) [(Msg Content) State] -> State
+    datatype-cases mailbox_equality_empty_characterization {
+      (mb as empty) =>
+        assume (mailbox_equality empty mb)
+          (!reflex empty:(Lst (Msg 'Content)))
+    | (mb as (lst h:(Msg 'Content) t:(Lst (Msg 'Content)))) =>
+        assume hyp := (mailbox_equality empty (lst h t))
+          let {
+            l2s_eq        := (!chain-> [hyp
+                                ==> ((l2s empty) = (l2s (lst h t)))
+                                                            [mailbox_equality_def]]);
+            insert_eq_null := (!chain [(Set.insert h (l2s t))
+                                = (l2s (lst h t))           [Lst.toSet.toSet-axioms]
+                                = (l2s empty)               [l2s_eq]
+                                = Set.null                  [Lst.toSet.toSet-axioms]]);
+            h_in_ins      := (!chain-> [(h = h)
+                                ==> ((h = h) | (h in (l2s t)))      [prop-taut]
+                                ==> (h in (Set.insert h (l2s t)))   [Set.in-def]]);
+            h_in_null     := (!chain-> [h_in_ins
+                                ==> (h in Set.null)         [insert_eq_null]]);
+            not_in_null   := (!chain-> [true
+                                ==> (~ (h in Set.null))     [Set.in-def]])
+          }
+          (!from-complements ((lst h t) = empty:(Lst (Msg 'Content))) h_in_null not_in_null)
+    }
+
+    # `apply` and `apply_mailbox` are specialized to the (Set.Set Content) state
+    # representation that the grow-only-set CRDT uses. The paper presents these
+    # with a polymorphic `State` sort; here we tighten to the carrier that the
+    # axioms actually constrain so the algebraic-property lemmas below can be
+    # proven by straightforward chains on `apply_add_axiom` and the Set laws.
+    declare apply: (Content) [(Msg Content) (Set.Set Content)] -> (Set.Set Content)
     assert* apply_add_axiom :=
-        ((apply (msg c) state) = ( (singleton c) \/ state))
-    
-    declare apply_mailbox: (Content, State) [(Lst (Msg Content)) State] -> State
+        ((apply (msg add c) state) = ((singleton c) \/ state))
+
+    declare apply_mailbox: (Content) [(Lst (Msg Content)) (Set.Set Content)] -> (Set.Set Content)
     assert apply_mailbox_axioms :=
         (fun [
             (apply_mailbox empty state) = state
-            (apply_mailbox (lst msg0 mailbox_tail) state) 
+            (apply_mailbox (lst msg0 mailbox_tail) state)
                 = (apply_mailbox mailbox_tail (apply msg0 state))
         ])
-    
-    # mismo estado inicial! <-- decir esto en el paper!
+
+    # Algebraic properties of `apply` for the `add` operation.
+    # The paper (III-E) cites set-union's commutativity and idempotence as the
+    # mathematical foundation for tolerating network reordering and duplication.
+    # Both proofs are direct chains on apply_add_axiom plus the Set laws
+    # union-commutes, union-associativity, and \/-idempotence.
+
+    define apply_commutative_add :=
+        (forall c0 c1 state .
+            (apply (msg add c0) (apply (msg add c1) state))
+                = (apply (msg add c1) (apply (msg add c0) state)))
+
+    conclude apply_commutative_add
+        pick-any c0 c1 state
+            (!chain [
+                (apply (msg add c0) (apply (msg add c1) state))
+                = (apply (msg add c0) ((singleton c1) \/ state))   [apply_add_axiom]
+                = ((singleton c0) \/ ((singleton c1) \/ state))    [apply_add_axiom]
+                = (((singleton c0) \/ (singleton c1)) \/ state)    [union-associativity]
+                = (((singleton c1) \/ (singleton c0)) \/ state)    [union-commutes]
+                = ((singleton c1) \/ ((singleton c0) \/ state))    [union-associativity]
+                = ((singleton c1) \/ (apply (msg add c0) state))   [apply_add_axiom]
+                = (apply (msg add c1) (apply (msg add c0) state))  [apply_add_axiom]
+            ])
+
+    define apply_idempotent_add :=
+        (forall c state .
+            (apply (msg add c) (apply (msg add c) state))
+                = (apply (msg add c) state))
+
+    conclude apply_idempotent_add
+        pick-any c state
+            (!chain [
+                (apply (msg add c) (apply (msg add c) state))
+                = (apply (msg add c) ((singleton c) \/ state))     [apply_add_axiom]
+                = ((singleton c) \/ ((singleton c) \/ state))      [apply_add_axiom]
+                = (((singleton c) \/ (singleton c)) \/ state)      [union-associativity]
+                = ((singleton c) \/ state)                         [\/-idempotence]
+                = (apply (msg add c) state)                        [apply_add_axiom]
+            ])
+
+    # ------------------------------------------------------------------
+    # addOnly: a mailbox is "addOnly" if every message it carries is in
+    # add-form, i.e. has operation `add`. The grow-only-set CRDT described
+    # in the paper only ever delivers `add` messages, so this is the
+    # natural domain for the eventual_consistency theorem: for a generic
+    # message `(msg op c)` with `op =/= add`, no axiom constrains
+    # `(apply (msg op c) state)`, and the convergence claim is not
+    # derivable from the assumption base alone.
+    # ------------------------------------------------------------------
+    define [op0] := [?op0:Operation]
+
+    declare addOnly: (Content) [(Lst (Msg Content))] -> Boolean
+    assert addOnly_axioms := (fun [
+        (addOnly empty:(Lst (Msg 'Content))) <==> true
+        (addOnly (lst (msg op0 c0) mb_tail)) <==>
+            ((op0 = add) & (addOnly mb_tail))
+    ])
+
+
+    # ------------------------------------------------------------------
+    # apply_mailbox_in_charact
+    #
+    # Pointwise characterization of the state produced by applying a
+    # whole mailbox of `add` messages on top of an initial state:
+    #
+    #     x in (apply_mailbox mb state)
+    #       <==> x in state | (msg add x) in (l2s mb)
+    #
+    # The proof is by structural induction on mb. The base case is
+    # `Set.in-def` on null. In the step case `msg_no_junk` decomposes the
+    # head message into `(msg op_w c_w)`; `addOnly_axioms` then forces
+    # `op_w = add`, so `apply m0 state` collapses to
+    # `singleton c_w \/ state` via `apply_add_axiom`, and the inductive
+    # hypothesis applied at that widened state finishes the chain.
+    # ------------------------------------------------------------------
+    define apply_mailbox_in_charact :=
+        (forall mb .
+            (addOnly mb) ==>
+            (forall x state .
+                ((x in (apply_mailbox mb state)) <==>
+                 ((x in state) | ((msg add x) in (l2s mb))))))
+
+    by-induction apply_mailbox_in_charact {
+      (mb as empty:(Lst (Msg 'Content))) =>
+        assume (addOnly empty:(Lst (Msg 'Content)))
+          pick-any x:'Content state:(Set.Set 'Content)
+            (!chain [
+                (x in (apply_mailbox empty:(Lst (Msg 'Content)) state))
+                <==> (x in state)
+                        [apply_mailbox_axioms]
+                <==> ((x in state) | false)
+                        [prop-taut]
+                <==> ((x in state) | ((msg add x) in Set.null))
+                        [Set.null-characterization]
+                <==> ((x in state) | ((msg add x) in (l2s empty:(Lst (Msg 'Content)))))
+                        [Lst.toSet.toSet-axioms]
+            ])
+    | (mb as (lst m0:(Msg 'Content) mb_tail:(Lst (Msg 'Content)))) =>
+        let { IH := ((addOnly mb_tail) ==>
+                     (forall x state .
+                        ((x in (apply_mailbox mb_tail state)) <==>
+                         ((x in state) | ((msg add x) in (l2s mb_tail)))))) }
+        assume hyp := (addOnly (lst m0 mb_tail))
+          pick-any x:'Content state:(Set.Set 'Content)
+            let { m0_ex := (!uspec msg_no_junk m0) }
+            pick-witnesses op_w c_w for m0_ex m0_eq # m0_eq : m0 = (msg op_w c_w)
+            let {
+              # Rewrite hyp through m0_eq so the addOnly axiom's head
+              # pattern (msg op0 c0) can fire.
+              hyp_concrete := (!chain-> [
+                                hyp
+                                ==> (addOnly (lst (msg op_w c_w) mb_tail))
+                                            [m0_eq]
+                              ]);
+              hyp_split := (!chain-> [
+                                hyp_concrete
+                                ==> ((op_w = add) & (addOnly mb_tail))
+                                            [addOnly_axioms]
+                            ]);
+              op_is_add    := (!chain-> [hyp_split ==> (op_w = add)    [prop-taut]]);
+              tail_addOnly := (!chain-> [hyp_split ==> (addOnly mb_tail) [prop-taut]]);
+              m0_is_add := (!chain [
+                                m0
+                                = (msg op_w c_w)   [m0_eq]
+                                = (msg add c_w)    [op_is_add]
+                            ]);
+              # Discharge addOnly mb_tail from the IH first, then
+              # instantiate at the widened state (singleton c_w \/ state)
+              # — that's where the side-effect of `apply m0` flows into
+              # the recursive call.
+              ih_open    := (!mp IH tail_addOnly);
+              ih_widened := (!uspec* ih_open [x ((singleton c_w) \/ state)]);
+              # Side-lemma: under msg's injectivity, equality of two
+              # add-messages reduces to equality of their contents. We
+              # derive it by hand here so the main chain doesn't have to
+              # carry the trivially-true `add = add` conjunct that
+              # msg_no_conf otherwise produces.
+              add_refl := (!reflex add);
+              msg_eq_iff_content := (!equiv
+                  assume eq_msgs := ((msg add x) = (msg add c_w))
+                    (!chain-> [
+                        eq_msgs
+                        ==> ((add = add) & (x = c_w))  [msg_no_conf]
+                        ==> (x = c_w)                   [right-and]])
+                  assume eq_x := (x = c_w)
+                    let { both_eq := (!both add_refl eq_x) }
+                    (!chain-> [
+                        both_eq
+                        ==> ((msg add x) = (msg add c_w))  [msg_no_conf]]))
+            }
+            (!chain [
+                (x in (apply_mailbox (lst m0 mb_tail) state))
+                <==> (x in (apply_mailbox mb_tail (apply m0 state)))
+                        [apply_mailbox_axioms]
+                <==> (x in (apply_mailbox mb_tail (apply (msg add c_w) state)))
+                        [m0_is_add]
+                <==> (x in (apply_mailbox mb_tail ((singleton c_w) \/ state)))
+                        [apply_add_axiom]
+                <==> ((x in ((singleton c_w) \/ state)) |
+                      ((msg add x) in (l2s mb_tail)))
+                        [ih_widened]
+                <==> (((x in (singleton c_w)) | (x in state)) |
+                      ((msg add x) in (l2s mb_tail)))
+                        [Set.union-characterization]
+                <==> (((x in (insert c_w Set.null)) | (x in state)) |
+                      ((msg add x) in (l2s mb_tail)))
+                        [singleton-def]
+                <==> ((((x = c_w) | (x in Set.null)) | (x in state)) |
+                      ((msg add x) in (l2s mb_tail)))
+                        [Set.in-def]
+                <==> ((((x = c_w) | false) | (x in state)) |
+                      ((msg add x) in (l2s mb_tail)))
+                        [Set.null-characterization]
+                <==> (((x = c_w) | (x in state)) |
+                      ((msg add x) in (l2s mb_tail)))
+                        [prop-taut]
+                <==> ((x in state) |
+                      ((x = c_w) | ((msg add x) in (l2s mb_tail))))
+                        [prop-taut]
+                <==> ((x in state) |
+                      (((msg add x) = (msg add c_w)) |
+                       ((msg add x) in (l2s mb_tail))))
+                        [msg_eq_iff_content]
+                <==> ((x in state) |
+                      (((msg add x) = m0) | ((msg add x) in (l2s mb_tail))))
+                        [m0_is_add]
+                <==> ((x in state) |
+                      ((msg add x) in (Set.insert m0 (l2s mb_tail))))
+                        [Set.in-def]
+                <==> ((x in state) |
+                      ((msg add x) in (l2s (lst m0 mb_tail))))
+                        [Lst.toSet.toSet-axioms]
+            ])
+    }
+
+
+    # ------------------------------------------------------------------
+    # eventual_consistency
+    #
+    # Strong Convergence for the Op-based grow-only-set CRDT: if two
+    # replicas have delivered the same *set* of `add` updates
+    # (mailbox_equality) and start from the same state, then their
+    # post-application states are equal. The proof reduces set-equality
+    # of the two resulting states to pointwise membership equivalence
+    # via set-identity-intro-direct and then closes each direction with
+    # apply_mailbox_in_charact, using mailbox_equality_def to swap
+    # `(l2s mailbox0)` for `(l2s mailbox1)`.
+    # ------------------------------------------------------------------
     define eventual_consistency :=
-        ( forall mailbox0 mailbox1 state0 state1  .
-            (mailbox_equality mailbox0 mailbox1) & (state0 = state1)
+        (forall mailbox0 mailbox1 state0 state1 .
+            ((addOnly mailbox0) & (addOnly mailbox1) &
+             (mailbox_equality mailbox0 mailbox1) & (state0 = state1))
             ==>
-            (apply_mailbox mailbox0  state0) = (apply_mailbox mailbox1 state1) 
-        )
+            ((apply_mailbox mailbox0 state0) =
+             (apply_mailbox mailbox1 state1)))
+
+    conclude eventual_consistency
+      pick-any mailbox0:(Lst (Msg 'Content))
+               mailbox1:(Lst (Msg 'Content))
+               state0:(Set.Set 'Content)
+               state1:(Set.Set 'Content)
+        assume hyp := ((addOnly mailbox0) & (addOnly mailbox1) &
+                       (mailbox_equality mailbox0 mailbox1) &
+                       (state0 = state1))
+          let {
+            addOnly0  := (!chain-> [hyp ==> (addOnly mailbox0)             [prop-taut]]);
+            addOnly1  := (!chain-> [hyp ==> (addOnly mailbox1)             [prop-taut]]);
+            mb_eq     := (!chain-> [hyp ==> (mailbox_equality mailbox0 mailbox1) [prop-taut]]);
+            states_eq := (!chain-> [hyp ==> (state0 = state1)              [prop-taut]]);
+            l2s_eq    := (!chain-> [mb_eq ==> ((l2s mailbox0) = (l2s mailbox1))
+                                                  [mailbox_equality_def]]);
+            charact0  := (!mp (!uspec apply_mailbox_in_charact mailbox0) addOnly0);
+            charact1  := (!mp (!uspec apply_mailbox_in_charact mailbox1) addOnly1)
+          }
+          (!Set.set-identity-intro-direct
+              pick-any x:'Content
+                (!chain [
+                    (x in (apply_mailbox mailbox0 state0))
+                    <==> ((x in state0) | ((msg add x) in (l2s mailbox0)))
+                            [charact0]
+                    <==> ((x in state1) | ((msg add x) in (l2s mailbox1)))
+                            [states_eq l2s_eq]
+                    <==> (x in (apply_mailbox mailbox1 state1))
+                            [charact1]
+                ]))
 
 
-    # pick-any state
-    # pick-any mb1 s0 s1
-
-    # by-induction eventual_consistency {
-    #     empty =>
-    #     pick-any mb1 s0 s1
-    #         assume h := ((mailbox_equality empty mb1) and (s0 = s1))
-    #             (!chain [
-    #                 (apply_mailbox empty s0)
-    #                 = s0                        [apply_mailbox_axioms]      
-    #                 = s1                        [h]
-    #                 = (apply_mailbox empty s1)  [apply_mailbox_axioms]
-    #                 = (apply_mailbox mb1 s1)    [mailbox_equality_empty_characterization] 
-    #             ])
-    #     | (lst c mailbox_tail) =>
-    # }
-        
 }
