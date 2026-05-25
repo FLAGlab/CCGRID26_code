@@ -11,9 +11,10 @@ datatype (DHTRep S) := (dhtr hf:(fn S N) rv:N htl:Location buckets:(DLst (Lst S)
 
 module DHTable {
 
-	define [initDPrList insertDPrList available_key in] := 
-	       [DL_L_S.initDPrList DL_L_S.insertDPrList 
-		    DL_L_S.available_key DL_L_S.in]
+	define [initDPrList insertDPrList available_key in no_consecutive_failures] :=
+	       [DL_L_S.initDPrList DL_L_S.insertDPrList
+		    DL_L_S.available_key DL_L_S.in
+		    DL_L_S.no_consecutive_failures]
 
 	assert dht_st_axioms := (structure-axioms "DHTable")
 
@@ -300,7 +301,7 @@ module DHTable {
 				(dht = (dht_empty ll hf rv htl) &
 				((query dht v) = (SOME false)) &
 				(values dht = (SOME Set.null)) )) |
-			(exists dht0 v0 b b0 s s0 . 
+			(exists dht0 v0 b b0 s s0 .
 				(dht = (dht_insert dht0 v0) &
 				((query dht v)  = (SOME b) &
 				(query dht0 v) = (SOME b0) &
@@ -310,4 +311,64 @@ module DHTable {
 				(s = (Set.insert v0 s0))))
 			)))
 				# & (hf dht = hf dht0)
+
+
+	### ---------------------------------------------------------------
+	### dht_replication_correctness  (asserted — formal statement of the
+	### abstract's replication claim)
+	###
+	### Paper claim (abstract): "as long as no `r` consecutive bucket
+	### locations fail — with a replication value `r` — all the DHT
+	### key-value pairs remain available." Concretely: if the bucket
+	### list `dlls` underlying the DHT satisfies
+	###   `no_consecutive_failures rv dlls dlls`
+	### then `available dht` holds, so every inserted key passes the
+	### per-key `available_key` precondition demanded by
+	### `query_functional_correctness`.
+	###
+	### The `~ (dlls = (dempty htl))` precondition rules out the
+	### degenerate case `(dht_empty empty hf rv htl)` (initialized with
+	### an empty location list): there `dlls = (dempty htl)`,
+	### `no_consecutive_failures` is vacuously true (no positions to
+	### start a window from), but `available_key` returns false
+	### unconditionally on a `dempty` o_dlls (`available_key_axioms`
+	### first clause), so a `dht_insert` on top would be unavailable
+	### even though the replication invariant trivially holds.
+	###
+	### Proof obligation (deferred — companion to fixes.txt items 4–5):
+	###   * Empty branch (dht = dht_empty ll hf rv htl): `available`
+	###     evaluates to `true` directly via the first available_axiom.
+	###   * Insert branch (dht = dht_insert dht0 v0): unfold `available`
+	###     into the conjunction
+	###         (available dht0) & (available_key (hf at v0) rv dlls dlls).
+	###     (i) `available dht0` follows from the IH after translating
+	###         the `no_consecutive_failures` hypothesis from the
+	###         post-insert dlls back to the pre-insert dlls through
+	###         `insertDPrList_preserves_locs` (dlls.ath:284) and
+	###         `available_key_dlls_locs_inv` (dlls.ath:789) — both
+	###         predicates depend on dlls only through its
+	###         head-location projection `dlls_locs`.
+	###     (ii) `available_key (hf at v0) rv dlls dlls` follows from a
+	###         bucket-lookup lemma derived by induction on the bucket
+	###         index from `no_consecutive_failures`: every starting
+	###         position yields an alive window, so the specific
+	###         position `(hf at v0)` does too.
+	###
+	###     The lookup lemma is the natural intermediate:
+	###         forall bucket rv dlls .
+	###             (~ (dlls = (dempty htl))) &
+	###             (no_consecutive_failures rv dlls dlls)
+	###             ==> (available_key bucket rv dlls dlls)
+	###     proved by induction on (bucket, dlls). It is *not* declared
+	###     here so the assumption base stays minimal; add it as a
+	###     proved lemma when discharging this theorem.
+	# TODO: discharge by induction on dht using the two ingredients above.
+	define dht_replication_correctness :=
+		(forall dht hf rv htl dlls .
+			(((rep dht) = (dhtr hf rv htl dlls)) &
+			 (~ (dlls = (dempty htl))) &
+			 (no_consecutive_failures rv dlls dlls))
+			==>
+			(available dht))
+	assert dht_replication_correctness
 }
