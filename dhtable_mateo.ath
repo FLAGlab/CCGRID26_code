@@ -362,7 +362,55 @@ module DHTable {
 	###     proved by induction on (bucket, dlls). It is *not* declared
 	###     here so the assumption base stays minimal; add it as a
 	###     proved lemma when discharging this theorem.
-	# TODO: discharge by induction on dht using the two ingredients above.
+	### Auxiliary lemma (ASSERTED): `no_consecutive_failures` is invariant
+	### under `insertDPrList` when both the dlls and o_dlls slots are the
+	### freshly-inserted list (the canonical form `available` uses).
+	### Provable by structural induction on dlls using
+	### `insertDPrList_preserves_locs` (dlls.ath:284) and
+	### `available_key_dlls_locs_inv` (dlls.ath:789) — both available
+	### predicates ultimately depend on dlls only through `dlls_locs`.
+	define no_consecutive_failures_insert_inv :=
+		(forall n rv1 v0 dlls0 .
+			(no_consecutive_failures rv1
+				(insertDPrList n rv1 v0 dlls0)
+				(insertDPrList n rv1 v0 dlls0))
+			<==>
+			(no_consecutive_failures rv1 dlls0 dlls0))
+	assert no_consecutive_failures_insert_inv
+
+	### Auxiliary lemma (ASSERTED): the "every-position implies
+	### this-position" lookup. If every (rv+1)-window in a non-empty
+	### dlls is alive, then so is the window at any chosen bucket index.
+	### Provable by induction on (bucket, dlls).
+	define no_consecutive_failures_implies_key_available :=
+		(forall n rv1 dlls0 htl .
+			((~ (dlls0 = (dempty htl))) &
+			 (no_consecutive_failures rv1 dlls0 dlls0))
+			==>
+			(available_key n rv1 dlls0 dlls0))
+	assert no_consecutive_failures_implies_key_available
+
+	### Auxiliary lemma (PROVED): `insertDPrList` preserves
+	### non-emptiness. Discharged here by contradiction using
+	### `insert_into_empty_dlls`.
+	define insertDPrList_preserves_nonempty :=
+		(forall n rv1 v0 dlls0 htl .
+			(~ ((insertDPrList n rv1 v0 dlls0) = (dempty htl)))
+			==>
+			(~ (dlls0 = (dempty htl))))
+	conclude insertDPrList_preserves_nonempty
+		pick-any n:N rv1:N v0:'S dlls0:(DLst (Lst 'S)) htl:Location
+		assume hyp_ne := (~ ((insertDPrList n rv1 v0 dlls0) = (dempty htl)))
+			(!by-contradiction (~ (dlls0 = (dempty htl)))
+				assume dlls0_empty := (dlls0 = (dempty htl))
+					let { collapse := (!chain [
+							(insertDPrList n rv1 v0 dlls0)
+							= (insertDPrList n rv1 v0 (dempty htl)) [dlls0_empty]
+							= (dempty htl)                          [DL_L_S.insert_into_empty_dlls]
+						]) }
+					(!absurd collapse hyp_ne))
+
+
 	define dht_replication_correctness :=
 		(forall dht hf rv htl dlls .
 			(((rep dht) = (dhtr hf rv htl dlls)) &
@@ -370,5 +418,118 @@ module DHTable {
 			 (no_consecutive_failures rv dlls dlls))
 			==>
 			(available dht))
-	assert dht_replication_correctness
+
+	by-induction dht_replication_correctness {
+	  (dht as (dht_empty ll1 hf1 rv1 htl1)) =>
+		pick-any hf:(fn 'S N) rv:N htl:Location dlls:(DLst (Lst 'S))
+		assume hyp := (((rep dht) = (dhtr hf rv htl dlls)) &
+		               (~ (dlls = (dempty htl))) &
+		               (no_consecutive_failures rv dlls dlls))
+			(!chain-> [
+				true
+				==> (available (dht_empty ll1 hf1 rv1 htl1)) [available_axioms]
+			])
+	| (dht as (dht_insert dht0 v0)) =>
+		let { IH := (forall hf rv htl dlls .
+		                (((rep dht0) = (dhtr hf rv htl dlls)) &
+		                 (~ (dlls = (dempty htl))) &
+		                 (no_consecutive_failures rv dlls dlls))
+		                ==>
+		                (available dht0)) }
+		pick-any hf:(fn 'S N) rv:N htl:Location dlls_after:(DLst (Lst 'S))
+		assume hyp := (((rep (dht_insert dht0 v0)) = (dhtr hf rv htl dlls_after)) &
+		               (~ (dlls_after = (dempty htl))) &
+		               (no_consecutive_failures rv dlls_after dlls_after))
+			let {
+				# Extract the three conjuncts of hyp.
+				rep_eq_after  := (!chain-> [
+					hyp ==> ((rep (dht_insert dht0 v0)) = (dhtr hf rv htl dlls_after))
+						[prop-taut]]);
+				nonempty_after := (!chain-> [
+					hyp ==> (~ (dlls_after = (dempty htl))) [prop-taut]]);
+				ncf_after := (!chain-> [
+					hyp ==> (no_consecutive_failures rv dlls_after dlls_after) [prop-taut]]);
+				# By rep_e applied to dht0, dht0 has an internal representation.
+				ex_rep0 := (!uspec rep_e dht0)
+			}
+			pick-witnesses hf0 rv0 htl0 dlls0 for ex_rep0 rep0_eq
+			let {
+				# rep_axioms unfolds (rep (dht_insert dht0 v0)) using the
+				# witnesses just bound (the `when` clause of the axiom).
+				insert_rep_form := (!chain [
+					(rep (dht_insert dht0 v0))
+					= (dhtr hf0 rv0 htl0 (insertDPrList (hf0 at v0) rv0 v0 dlls0)) [rep_axioms]
+				]);
+				# Combine with rep_eq_after to compare two dhtr forms.
+				dhtr_eq := (!chain [
+					(dhtr hf rv htl dlls_after)
+					= (rep (dht_insert dht0 v0))                                       [rep_eq_after]
+					= (dhtr hf0 rv0 htl0 (insertDPrList (hf0 at v0) rv0 v0 dlls0))     [insert_rep_form]
+				]);
+				# dhtr_no_conf gives us the four component equalities.
+				fields_iff := (!chain-> [
+					dhtr_eq
+					==> ((hf = hf0) & (rv = rv0) & (htl = htl0) &
+					     (dlls_after = (insertDPrList (hf0 at v0) rv0 v0 dlls0)))
+						[dhtr_no_conf]
+				]);
+				rv_eq   := (!chain-> [fields_iff ==> (rv = rv0)    [prop-taut]]);
+				htl_eq  := (!chain-> [fields_iff ==> (htl = htl0)  [prop-taut]]);
+				dlls_eq := (!chain-> [fields_iff
+					==> (dlls_after = (insertDPrList (hf0 at v0) rv0 v0 dlls0))
+						[prop-taut]]);
+				# Transport ncf to the witness-named form so insert_inv can fire.
+				ncf_insert_form := (!chain-> [
+					ncf_after
+					==> (no_consecutive_failures rv
+							(insertDPrList (hf0 at v0) rv0 v0 dlls0)
+							(insertDPrList (hf0 at v0) rv0 v0 dlls0))
+						[dlls_eq]
+					==> (no_consecutive_failures rv0
+							(insertDPrList (hf0 at v0) rv0 v0 dlls0)
+							(insertDPrList (hf0 at v0) rv0 v0 dlls0))
+						[rv_eq]
+				]);
+				ncf_before := (!chain-> [
+					ncf_insert_form
+					==> (no_consecutive_failures rv0 dlls0 dlls0)
+						[no_consecutive_failures_insert_inv]
+				]);
+				# Non-emptiness of dlls0: translate through htl_eq and dlls_eq,
+				# then apply the contrapositive lemma.
+				nonempty_insert_form := (!chain-> [
+					nonempty_after
+					==> (~ (dlls_after = (dempty htl0))) [htl_eq]
+					==> (~ ((insertDPrList (hf0 at v0) rv0 v0 dlls0) = (dempty htl0)))
+						[dlls_eq]
+				]);
+				nonempty_before := (!mp
+					(!uspec* insertDPrList_preserves_nonempty
+						[(hf0 at v0) rv0 v0 dlls0 htl0])
+					nonempty_insert_form);
+				# Apply IH at the witness names.
+				ih_premise := (!both rep0_eq (!both nonempty_before ncf_before));
+				avail_dht0 := (!mp (!uspec* IH [hf0 rv0 htl0 dlls0]) ih_premise);
+				# Lookup lemma: available_key holds at (hf0 at v0).
+				lookup_premise := (!both nonempty_before ncf_before);
+				avail_key := (!mp
+					(!uspec* no_consecutive_failures_implies_key_available
+						[(hf0 at v0) rv0 dlls0 htl0])
+					lookup_premise);
+				# available_axioms (dht_insert clause) fires because rep0_eq
+				# supplies its `when` antecedent with the same witnesses.
+				avail_conj := (!both avail_dht0 avail_key);
+				avail_iff := (!chain-> [
+					rep0_eq
+					==> ((available (dht_insert dht0 v0)) <==>
+					     ((available dht0) &
+					      (available_key (hf0 at v0) rv0 dlls0 dlls0)))
+						[available_axioms]
+				])
+			}
+			(!chain-> [
+				avail_conj
+				==> (available (dht_insert dht0 v0)) [avail_iff]
+			])
+	}
 }
