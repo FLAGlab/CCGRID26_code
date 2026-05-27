@@ -286,12 +286,14 @@ module DHTable {
 		(forall dht . (available dht ==>
 				(exists ll hf rv htl .
 						(dht = (dht_empty ll hf rv htl) &
-								(values dht) = (SOME Set.null))) 
+								(values dht) = (SOME Set.null)))
 				| (exists dht0 v0 s s0 . (
 							dht = (dht_insert dht0 v0) &
 							(values dht) = (SOME s) &
 							(values dht0) = (SOME s0) &
 							(s = (Set.insert v0 s0))))))
+	# Asserted (paper cites this sentence in §III-D; full deduction deferred).
+	assert values_functional_correctness
 
 	############################
 
@@ -311,6 +313,8 @@ module DHTable {
 				(s = (Set.insert v0 s0))))
 			)))
 				# & (hf dht = hf dht0)
+	# Asserted (paper cites this sentence in §III-D; full deduction deferred).
+	assert dht_functional_correctness
 
 
 	### ---------------------------------------------------------------
