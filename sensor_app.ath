@@ -1,0 +1,223 @@
+### --- sensor_app.ath ---
+###
+### This file does NOT add new theorems to the library. It instantiates the
+### three already-proven library modules (DFunction, DHTable, CRDT) at
+### concrete sensor-app sorts and locations, then DERIVES the service-level
+### guarantees claimed by composition in the paper. Each `conclude` below is
+### a direct instantiation of a sentence already on the assumption base of an
+### upstream module; the final lemma chains two of them together to obtain
+### the cross-module composition guarantee that motivates §IV.
+
+# Load order matters: `crdt.ath` proves a lemma that pattern-matches on a
+# list head named `h`; if `function.ath` has been loaded first, its
+# top-level `h := ?h` shadows the pattern variable and crdt's proof aborts.
+# Loading crdt first sidesteps that, and its transitive loads bring in
+# nat-plus *before* pair's `open Pr` rebinds the selector `first`, which
+# the standard nat-plus proof needs.
+load "crdt"
+load "dhtable_mateo"
+load "dfunction"
+
+
+########################## SIV-A: Sensor-app sorts ###########################
+
+domain SensorID
+domain SensorType
+domain Temperature
+
+
+############### SIV-A: Concrete data-type witnesses ###############
+
+# DHT of sensor metadata. r = 1 ==> `available_key` collapses to
+# "home bucket alive OR its successor alive", the smallest non-trivial
+# replication case.
+declare sNode0, sNode1, sNode2, home : Location
+declare metaHF : (fn SensorID N)
+define  metaNodes := (lst sNode0 (lst sNode1 (lst sNode2 empty:(Lst Location))))
+define  metaDHT   := (dht_empty metaNodes metaHF (S zero) home)
+
+# Telemetry node hosting the grow-only set of (SensorID, Temperature) readings.
+# Re-use `Pr` as the reading carrier rather than introducing a new structure.
+declare telemetryLoc : Location
+declare telemetryState : (Set.Set (Pr SensorID Temperature))
+declare telemetryMailbox : (Lst (Msg (Pr SensorID Temperature)))
+define  telemetryNode :=
+    (node zero telemetryState telemetryMailbox telemetryLoc)
+
+
+################ SIV-B: Service kernel signatures ################
+
+# Service 1: average temperature over the telemetry set.
+declare avgTemp :
+    (fn (Set.Set (Pr SensorID Temperature)) Temperature)
+
+# Service 2: count of distinct sensor IDs (DHT-backed lookup result).
+declare typeCount :
+    (fn (Set.Set SensorID) N)
+
+# Bridge kernels for service 3. The paper writes service-3 informally as
+# `replicaComposition(service1, service2)`, but services 1 and 2 do not
+# directly chain (different domains). The MVP realises the same idea as the
+# composition of two type-aligned kernels:
+#   groupByType : Set.Set (SensorID,   Temperature)
+#              -> Set.Set (SensorType, Temperature)
+#   avgPerType  : Set.Set (SensorType, Temperature)
+#              -> Temperature
+declare groupByType :
+    (fn (Set.Set (Pr SensorID Temperature))
+        (Set.Set (Pr SensorType Temperature)))
+declare avgPerType :
+    (fn (Set.Set (Pr SensorType Temperature))
+        Temperature)
+
+
+############# SIV-B: Replica locations #############
+
+declare avgL0, avgL1, cntL0, cntL1 : Location
+declare grpL0, grpL1, aptL0, aptL1 : Location
+
+
+############# SIV-B: functionReplica instances #############
+
+define avgTempSvc     := (DFunction.functionReplica avgTemp     avgL0 avgL1)
+define typeCountSvc   := (DFunction.functionReplica typeCount   cntL0 cntL1)
+define groupByTypeSvc := (DFunction.functionReplica groupByType grpL0 grpL1)
+define avgPerTypeSvc  := (DFunction.functionReplica avgPerType  aptL0 aptL1)
+
+# Composite service: telemetry -> grouped-by-type -> average-per-type.
+define avgByTypeSvc :=
+    (DFunction.replicaComposition groupByTypeSvc avgPerTypeSvc)
+
+
+############# SIV-B: Service-level guarantees (derived) #############
+
+# Telemetry convergence -- direct instance of CRDT.eventual_consistency at
+# the (Pr SensorID Temperature) carrier.
+define telemetry_convergence :=
+    (forall ?mb0:(Lst (Msg (Pr SensorID Temperature)))
+            ?mb1:(Lst (Msg (Pr SensorID Temperature)))
+            ?s0:(Set.Set (Pr SensorID Temperature))
+            ?s1:(Set.Set (Pr SensorID Temperature)) .
+        ((CRDT.addOnly ?mb0) &
+         (CRDT.addOnly ?mb1) &
+         (CRDT.mailbox_equality ?mb0 ?mb1) &
+         (?s0 = ?s1))
+        ==> ((CRDT.apply_mailbox ?mb0 ?s0)
+              = (CRDT.apply_mailbox ?mb1 ?s1)))
+
+conclude telemetry_convergence
+  pick-any mb0:(Lst (Msg (Pr SensorID Temperature)))
+           mb1:(Lst (Msg (Pr SensorID Temperature)))
+           s0:(Set.Set (Pr SensorID Temperature))
+           s1:(Set.Set (Pr SensorID Temperature))
+    assume hyp := ((CRDT.addOnly mb0) & (CRDT.addOnly mb1) &
+                   (CRDT.mailbox_equality mb0 mb1) & (s0 = s1))
+      (!mp (!uspec* CRDT.eventual_consistency [mb0 mb1 s0 s1]) hyp)
+
+
+# AvgTemp service fault tolerance -- instance of fault_tolerance_correctness.
+define avgTemp_fault_tolerance :=
+    (forall ?x:(Set.Set (Pr SensorID Temperature)) .
+        ((alive avgL0) | (alive avgL1))
+        ==> ((DFunction.apply avgTempSvc ?x) = (SOME (avgTemp at ?x))))
+
+conclude avgTemp_fault_tolerance
+  pick-any x:(Set.Set (Pr SensorID Temperature))
+    assume hyp := ((alive avgL0) | (alive avgL1))
+      (!mp (!uspec* DFunction.fault_tolerance_correctness
+                    [x avgTemp avgL0 avgL1])
+           hyp)
+
+
+# TypeCount service fault tolerance -- instance of fault_tolerance_correctness.
+define typeCount_fault_tolerance :=
+    (forall ?x:(Set.Set SensorID) .
+        ((alive cntL0) | (alive cntL1))
+        ==> ((DFunction.apply typeCountSvc ?x) = (SOME (typeCount at ?x))))
+
+conclude typeCount_fault_tolerance
+  pick-any x:(Set.Set SensorID)
+    assume hyp := ((alive cntL0) | (alive cntL1))
+      (!mp (!uspec* DFunction.fault_tolerance_correctness
+                    [x typeCount cntL0 cntL1])
+           hyp)
+
+
+# Composite AvgByType service fault tolerance -- instance of
+# fault_tolerance_correctness_composition. Variable order in the upstream
+# theorem is (x f g lg0 lg1 lf0 lf1), where f is the inner function and g
+# the outer. For avgByTypeSvc = replicaComposition groupByTypeSvc avgPerTypeSvc,
+# f := groupByType and g := avgPerType.
+define avgByType_fault_tolerance :=
+    (forall ?x:(Set.Set (Pr SensorID Temperature)) .
+        (((alive grpL0) | (alive grpL1)) &
+         ((alive aptL0) | (alive aptL1)))
+        ==> ((DFunction.apply avgByTypeSvc ?x)
+              = (SOME ((avgPerType o groupByType) at ?x))))
+
+conclude avgByType_fault_tolerance
+  pick-any x:(Set.Set (Pr SensorID Temperature))
+    assume hyp := (((alive grpL0) | (alive grpL1)) &
+                   ((alive aptL0) | (alive aptL1)))
+      (!mp (!uspec* DFunction.fault_tolerance_correctness_composition
+                    [x groupByType avgPerType aptL0 aptL1 grpL0 grpL1])
+           hyp)
+
+
+# The real value of §IV: combining eventual_consistency on the telemetry
+# stream with fault_tolerance_correctness on the avgTemp service gives a
+# service-level convergence guarantee. Two correct telemetry replicas that
+# have delivered the same set of `add` messages, fed into an alive avgTemp
+# replica pair, produce the same answer.
+
+define avgTemp_eventual_consistency :=
+    (forall ?mb0:(Lst (Msg (Pr SensorID Temperature)))
+            ?mb1:(Lst (Msg (Pr SensorID Temperature)))
+            ?s0:(Set.Set (Pr SensorID Temperature))
+            ?s1:(Set.Set (Pr SensorID Temperature)) .
+        ((CRDT.addOnly ?mb0) & (CRDT.addOnly ?mb1) &
+         (CRDT.mailbox_equality ?mb0 ?mb1) & (?s0 = ?s1) &
+         ((alive avgL0) | (alive avgL1)))
+        ==>
+        ((DFunction.apply avgTempSvc (CRDT.apply_mailbox ?mb0 ?s0))
+          = (DFunction.apply avgTempSvc (CRDT.apply_mailbox ?mb1 ?s1))))
+
+conclude avgTemp_eventual_consistency
+  pick-any mb0:(Lst (Msg (Pr SensorID Temperature)))
+           mb1:(Lst (Msg (Pr SensorID Temperature)))
+           s0:(Set.Set (Pr SensorID Temperature))
+           s1:(Set.Set (Pr SensorID Temperature))
+    assume hyp := ((CRDT.addOnly mb0) & (CRDT.addOnly mb1) &
+                   (CRDT.mailbox_equality mb0 mb1) & (s0 = s1) &
+                   ((alive avgL0) | (alive avgL1)))
+      let {
+        # Project the CRDT premise out of the larger hypothesis.
+        conv_hyp  := (!chain-> [hyp ==>
+                                ((CRDT.addOnly mb0) & (CRDT.addOnly mb1) &
+                                 (CRDT.mailbox_equality mb0 mb1) &
+                                 (s0 = s1)) [prop-taut]]);
+        # The two telemetry replicas converge to the same set.
+        states_eq := (!mp (!uspec* CRDT.eventual_consistency [mb0 mb1 s0 s1])
+                          conv_hyp);
+        # Project the DFunction premise out and apply fault_tolerance_correctness
+        # at the (already-collapsed) telemetry state on each side.
+        alive_hyp := (!chain-> [hyp ==>
+                                ((alive avgL0) | (alive avgL1))
+                                [prop-taut]]);
+        applied0  := (!mp (!uspec* DFunction.fault_tolerance_correctness
+                                   [(CRDT.apply_mailbox mb0 s0)
+                                    avgTemp avgL0 avgL1])
+                          alive_hyp);
+        applied1  := (!mp (!uspec* DFunction.fault_tolerance_correctness
+                                   [(CRDT.apply_mailbox mb1 s1)
+                                    avgTemp avgL0 avgL1])
+                          alive_hyp);
+        applied1_sym := (!sym applied1)
+      }
+      (!chain [
+        (DFunction.apply avgTempSvc (CRDT.apply_mailbox mb0 s0))
+        = (SOME (avgTemp at (CRDT.apply_mailbox mb0 s0)))   [applied0]
+        = (SOME (avgTemp at (CRDT.apply_mailbox mb1 s1)))   [states_eq]
+        = (DFunction.apply avgTempSvc (CRDT.apply_mailbox mb1 s1))
+                                                            [applied1_sym]
+      ])
