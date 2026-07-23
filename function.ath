@@ -66,8 +66,6 @@ define proofs :=
 
 (add-theorems theory |{Monoid-theorems := proofs}|)
 
-#..........................................................................
-
 declare surjective, injective, bijective: (D, C) [(fn D C)] -> Boolean
 
   define surjective-definition :=

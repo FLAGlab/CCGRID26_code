@@ -39,7 +39,6 @@ module DHTable {
 		((f = g) & (n = m) & (l0 = l1) & (dlls0 = dlls1))
 	)
 
-	### ------------------------------------------------------------
 	### rep
 	### Purpose:
 	###     Extract the internal distributed representation of a distributed hash table.
@@ -104,15 +103,14 @@ module DHTable {
 	# insertion in the dht must have the value and the value replicated rv number of times
 	# in the valid buckets
 
-	### ------------------------------------------------------------
-	### available (constructor-recursive on DHTable; addresses B1 in fixes.txt)
+	### available (constructor-recursive on DHTable)
 	### Purpose:
 	###     A distributed hash table is "available" when every value it actually
 	###     stores can be queried successfully — i.e. the bucket window for each
 	###     inserted value is alive. Stated constructor-recursively over the
 	###     DHTable shape:
 	###
-	###       * an empty DHT has no stored values, so it is trivially available;
+	###       * an empty DHT has noestored values, so it is trivially available;
 	###       * (dht_insert dht v) is available iff dht is and the bucket window
 	###         where v was just placed is alive.
 	###
@@ -120,9 +118,9 @@ module DHTable {
 	###         (available_aux (dhtr hf rv htl dlls)) <==>
 	###             (forall v . available_key (hf at v) rv dlls dlls)
 	###     which quantified over the entire carrier 'S. For an infinite 'S
-	###     (e.g. N) that was effectively "every bucket is rv-safe" (fixes.txt
-	###     B1.1) and strictly stronger than what query_functional_correctness
-	###     needs (B1.2). The new form makes both branches of the QFC induction
+	###     (e.g. N) that was effectively "every bucket is rv-safe" and
+	###     strictly stronger than what query_functional_correctness needs.
+	###     The new form makes both branches of the QFC induction
 	###     carry useful information: the empty branch is trivially available,
 	###     the insert branch hands us `available_key` on the freshly inserted
 	###     bucket directly. The intermediate predicate `available_aux` (which
@@ -140,7 +138,6 @@ module DHTable {
 		]
 	])
 
-	### ---------------------------------------------------------------
 	### query / query_aux
 	### Purpose:
 	###     Perform a lookup operation on a distributed hash table. The function
@@ -170,7 +167,7 @@ module DHTable {
 	assert* query_axiom := ((query dht v) = (query_aux (rep dht) v))
 
 	
-	# After the B1 refactor, `available (dht_empty ll hf rv htl) <==> true`, so
+	# After the `available` change above, `available (dht_empty ll hf rv htl) <==> true`, so
 	# the old `available` antecedent no longer constrains bucket aliveness on
 	# its own. The theorem is restated with the relevant `available_key`
 	# hypothesis spelled out directly. Under the old `available_aux_axiom` the
@@ -182,7 +179,7 @@ module DHTable {
 		((available_key (hf at v) rv (initDPrList hf htl ll) (initDPrList hf htl ll)) ==>
 		  ((query (dht_empty ll hf rv htl) v) = (SOME false))))
 
-	# B4 (fixes.txt) discharged: the old `force` step bridging
+	# The old `force` step bridging
 	#   (in … (…) v) <==> false      (what in_init_false gives us)
 	# to
 	#   (in … (…) v) =  false        (what `query = (SOME false)` needs under SOME)
@@ -227,34 +224,34 @@ module DHTable {
 	# 			((query dht v1) = (SOME b1)) &
 	# 			(b0 <==> ((v0 = v1) | b1))
 	# 		))
-	### ------------------------------------------------------------
 	### query_functional_correctness (TODO — asserted, not yet proved)
 	###
-	### After the B1 refactor, `available dht` no longer guarantees
+	### After the `available` change above, `available dht` no longer guarantees
 	### bucket-aliveness for arbitrary v. The theorem now takes the relevant
 	### `available_key` fact as an explicit per-v hypothesis (the same change
 	### we already made to query_fc_empty), and pulls the rep witnesses
 	### (hf rv htl dlls) into the outer forall so they're in scope for both
 	### the hypothesis and the empty-disjunct's existential.
 	###
-	### Proof obligation (deferred — fixes.txt B5):
+	### Proof obligation (deferred):
 	###   * Empty branch (dht = dht_empty ll hf rv htl): follows from
 	###     query_fc_empty using the available_key hypothesis directly.
 	###   * Insert branch (dht = dht_insert dt v0):
-	###       - case v = v0: needs the full-bucket G1 (in_after_insert_self
-	###         at arbitrary bucket). Only the bucket=0 case is proven in
-	###         dlls.ath:630; see the "Full G1" status block at
-	###         dlls.ath:668-701 for the missing size / `<` infrastructure.
-	###       - case v ≠ v0: needs G2 (in_after_insert_other) — currently
+	###       - case v = v0: needs in_after_insert_self at an arbitrary
+	###         bucket. Only the bucket=0 case is proven, in dlls.ath:630;
+	###         see the status block at dlls.ath:668-701 for the missing
+	###         size / `<` infrastructure.
+	###       - case v ≠ v0: needs in_after_insert_other — currently
 	###         asserted as a TODO in dlls.ath:720.
-	###       - either case: G3 (available_key_insert_invariant) is proven
+	###       - either case: available_key_insert_invariant is proven
 	###         (dlls.ath:776), modulo its asserted intermediate
 	###         available_key_dlls_locs_inv.
 	### Direct induction on dht is the cleaner path; Carlos's canonical /
 	### ht-equiv bridge does not lift to rv+1-fold replication (no bijection
 	### between DHTable and HTable when each value lives in many buckets).
-	# TODO: discharge by induction on dht once full G1 is proven and G2 is
-	# upgraded from an asserted conjecture to a proven theorem.
+	# TODO: discharge by induction on dht once in_after_insert_self is proven
+	# for an arbitrary bucket and in_after_insert_other is upgraded from an
+	# asserted conjecture to a proven theorem.
 	define query_functional_correctness :=
 		(forall dht v hf rv htl dlls .
 			(rep dht = (dhtr hf rv htl dlls) &
@@ -273,15 +270,83 @@ module DHTable {
 	assert query_functional_correctness
 
 
-	# #---dht-values
-
 	declare values_aux : (S) [(DHTRep S)]  -> (Option (Set.Set S))
 	assert* values_aux_axioms := 
-			((values_aux (dhtr hf rv htl dlls)) = (DL_L_S.values dlls Set.null false))
+			((values_aux (dhtr hf rv htl dlls)) = (DL_L_S.values dlls Set.null true))
 	declare values : 	 (S) [(DHTable S)] -> (Option (Set.Set S))
 	assert* values_axiom := ((values dht) = (values_aux (rep dht)))
 
+	# Empty-DHT case (PROVEN): an empty DHT is `available`, and `values` on it
+	# returns SOME Set.null (never NONE), because the public boundary always
+	# uses the `true` flag and every freshly-initialized bucket contributes
+	# the empty set (DL_L_S.values_init_some).
+	define values_fc_empty :=
+		(forall ll hf rv htl . (values (dht_empty ll hf rv htl)) = (SOME Set.null))
+	conclude values_fc_empty
+		pick-any ll:(Lst Location) hf:(fn 'S N) rv:N htl:Location
+			let { init_some := (!uspec* DL_L_S.values_init_some
+									[ll hf htl (Set.null:(Set.Set 'S))]) }
+			(!chain [ (values (dht_empty ll hf rv htl))
+					= (values_aux (rep (dht_empty ll hf rv htl)))              [values_axiom]
+					= (values_aux (dhtr hf rv htl (initDPrList hf htl ll)))    [rep_axioms]
+					= (DL_L_S.values (initDPrList hf htl ll) Set.null true)    [values_aux_axioms]
+					= (SOME Set.null)                                          [init_some] ])
 
+
+	# Insert-DHT case. The value set after inserting v0 is exactly Set.insert v0
+	# of the value set before. Reduces, through rep/values_aux, to the single
+	# remaining list-level obligation DL_L_S.values_after_insert; the pre-insert
+	# value set is furnished by the PROVEN DL_L_S.values_true_some, and the live
+	# window by `available` on the freshly inserted bucket.
+	define values_fc_insert :=
+		(forall dht0 v0 . (available (dht_insert dht0 v0)) ==>
+			exists s s0 . ((values (dht_insert dht0 v0)) = (SOME s) &
+			               (values dht0) = (SOME s0) &
+			               (s = (Set.insert v0 s0))))
+	conclude values_fc_insert
+		pick-any dht0:(DHTable 'S) v0:'S
+			assume avail := (available (dht_insert dht0 v0))
+				let { rep0 := (!uspec rep_e dht0) }
+				pick-witnesses hf rv htl dlls for rep0 rep0_def
+				let {
+					tot := (!uspec* DL_L_S.values_true_some
+									[dlls (Set.null:(Set.Set 'S))]) }
+				pick-witness s0 for tot tot_def
+				let {
+					vals0_some := (!chain
+						[ (values dht0)
+						= (values_aux (rep dht0))              [values_axiom]
+						= (values_aux (dhtr hf rv htl dlls))   [rep0_def]
+						= (DL_L_S.values dlls Set.null true)   [values_aux_axioms]
+						= (SOME s0)                            [tot_def] ]);
+					av_iff := (!chain->
+						[ rep0_def
+						==> ((available (dht_insert dht0 v0)) <==>
+						     ((available dht0) & (available_key (hf at v0) rv dlls dlls)))
+								[available_axioms] ]);
+					availkey := (!chain->
+						[ (!both avail av_iff)
+						==> (available_key (hf at v0) rv dlls dlls) [prop-taut] ]);
+					avf := (!uspec* DL_L_S.values_after_insert
+									[(hf at v0) rv v0 dlls s0]);
+					after := (!mp avf (!both availkey tot_def));
+					vals_ins := (!chain
+						[ (values (dht_insert dht0 v0))
+						= (values_aux (rep (dht_insert dht0 v0)))                            [values_axiom]
+						= (values_aux (dhtr hf rv htl (insertDPrList (hf at v0) rv v0 dlls))) [rep_axioms]
+						= (DL_L_S.values (insertDPrList (hf at v0) rv v0 dlls) Set.null true) [values_aux_axioms]
+						= (SOME (Set.insert v0 s0))                                          [after] ]);
+					conj := (!both vals_ins
+								(!both vals0_some (!reflex (Set.insert v0 s0)))) }
+				(!egen* (exists s s0 . ((values (dht_insert dht0 v0)) = (SOME s) &
+				                        (values dht0) = (SOME s0) &
+				                        (s = (Set.insert v0 s0))))
+						[(Set.insert v0 s0) s0])
+
+
+	# values_functional_correctness is now a real datatype-cases proof (was a bare
+	# `assert`). Its empty branch is fully proven (values_fc_empty); its insert
+	# branch is proven modulo the single list-level lemma DL_L_S.values_after_insert.
 	define values_functional_correctness :=
 		(forall dht . (available dht ==>
 				(exists ll hf rv htl .
@@ -292,10 +357,42 @@ module DHTable {
 							(values dht) = (SOME s) &
 							(values dht0) = (SOME s0) &
 							(s = (Set.insert v0 s0))))))
-	# Asserted (paper cites this sentence in §III-D; full deduction deferred).
-	assert values_functional_correctness
-
-	############################
+	datatype-cases values_functional_correctness {
+		(dht as (dht_empty ll1 hf1 rv1 htl1)) =>
+			assume avail := (available (dht_empty ll1 hf1 rv1 htl1))
+				let {
+					emp := (!instance values_fc_empty [ll1 hf1 rv1 htl1]);
+					left := (!chain->
+						[ emp
+						==> (((dht_empty ll1 hf1 rv1 htl1) = (dht_empty ll1 hf1 rv1 htl1)) &
+						     ((values (dht_empty ll1 hf1 rv1 htl1)) = (SOME Set.null)))
+							[augment] ]) }
+				(!either
+					(!egen* (exists ll hf rv htl .
+								((dht_empty ll1 hf1 rv1 htl1) = (dht_empty ll hf rv htl) &
+								 (values (dht_empty ll1 hf1 rv1 htl1)) = (SOME Set.null)))
+							[ll1 hf1 rv1 htl1])
+					(exists dht0 v0 s s0 . (
+							(dht_empty ll1 hf1 rv1 htl1) = (dht_insert dht0 v0) &
+							(values (dht_empty ll1 hf1 rv1 htl1)) = (SOME s) &
+							(values dht0) = (SOME s0) &
+							(s = (Set.insert v0 s0)))))
+	  | (dht as (dht_insert dht0 v0)) =>
+			assume avail := (available (dht_insert dht0 v0))
+				let { ins := (!mp (!instance values_fc_insert [dht0 v0]) avail) }
+				pick-witnesses sw sw0 for ins ins_def
+				let { full := (!both (!reflex (dht_insert dht0 v0)) ins_def) }
+				(!either
+					(exists ll hf rv htl .
+						((dht_insert dht0 v0) = (dht_empty ll hf rv htl) &
+						 (values (dht_insert dht0 v0)) = (SOME Set.null)))
+					(!egen* (exists dht1 v1 s s0 . (
+								(dht_insert dht0 v0) = (dht_insert dht1 v1) &
+								(values (dht_insert dht0 v0)) = (SOME s) &
+								(values dht1) = (SOME s0) &
+								(s = (Set.insert v1 s0))))
+							[dht0 v0 sw sw0]))
+	}
 
 	define dht_functional_correctness :=
 		(forall dht v . (available dht ==>
@@ -313,11 +410,10 @@ module DHTable {
 				(s = (Set.insert v0 s0))))
 			)))
 				# & (hf dht = hf dht0)
-	# Asserted (paper cites this sentence in §III-D; full deduction deferred).
+	# Asserted (paper cites this sentence in Section III-D; full deduction deferred).
 	assert dht_functional_correctness
 
 
-	### ---------------------------------------------------------------
 	### dht_replication_correctness  (asserted — formal statement of the
 	### abstract's replication claim)
 	###
@@ -339,7 +435,7 @@ module DHTable {
 	### first clause), so a `dht_insert` on top would be unavailable
 	### even though the replication invariant trivially holds.
 	###
-	### Proof obligation (deferred — companion to fixes.txt items 4–5):
+	### Proof obligation (deferred):
 	###   * Empty branch (dht = dht_empty ll hf rv htl): `available`
 	###     evaluates to `true` directly via the first available_axiom.
 	###   * Insert branch (dht = dht_insert dht0 v0): unfold `available`

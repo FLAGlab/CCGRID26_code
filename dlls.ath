@@ -26,7 +26,6 @@ module DL_L_S {
            [?l:Location ?l0:Location ?lh:Location ?htl:Location ?htl0:Location
             ?ll:(Lst Location) ?tail_l:(Lst Location) ?tail_l0:(Lst Location)]
 
-    ### ----------------------------------------------------------------------------------
     ### initDPrList
     ### Purpose:
     ###     Initialize a distributed list of buckets, one bucket per input location. Each
@@ -55,7 +54,6 @@ module DL_L_S {
                           ((initDPrList f htl lsts) = (dempty htl)) 
                         | (exists l tail_l . (initDPrList f htl lsts) = (dlst l empty (initDPrList f htl tail_l) ))))
 
-    ### -----------------------------------------------
     ### insertNAt
     ### Purpose:
     ###     Helper that prepends `v` to the buckets at positions
@@ -79,7 +77,6 @@ module DL_L_S {
                 (dlst lh lsts (insertNAt bucket (S n) v tail_dlls))
         ])
 
-    ### -----------------------------------------------
     ### countWraps
     ### Purpose:
     ###     Helper that returns how many of `n` consecutive insertions starting at
@@ -101,7 +98,6 @@ module DL_L_S {
                 (countWraps bucket (S n) tail_dlls)
         ])
 
-    ### -----------------------------------------------
     ### insertDPrList
     ### Purpose:
     ###     Insert a value `v` into the bucket at position `bucket` and into the
@@ -111,7 +107,8 @@ module DL_L_S {
     ###     being taken modulo the number of buckets so that positions past the
     ###     end wrap back to the front. The (rv+1) buckets touched here are
     ###     exactly the (rv+1) buckets that `in` and `available_key` traverse on
-    ###     the read side, closing the soundness gap noted in fixes.txt (A2).
+    ###     the read side, closing the soundness gap between the write path
+    ###     and the read path.
     ###
     ### Parameters:
     ###     bucket::N            : primary bucket index where insertion begins.
@@ -145,8 +142,7 @@ module DL_L_S {
                     (insertNAt bucket (S rv) v dlls))
         ])
 
-    ### -----------------------------------------------
-    ### Totality witnesses for insertDPrList (addresses A3 in fixes.txt).
+    ### Totality witnesses for insertDPrList.
     ### The original two-axiom insertDPrList left three cases unconstrained:
     ###   (1) (insertDPrList zero v (dlst lh empty tail_dlls))   -- empty bucket
     ###   (2) (insertDPrList zero v (dempty htl))                -- empty dlls
@@ -194,8 +190,7 @@ module DL_L_S {
             = (dempty htl)                                                    [insertNAt_axioms]
         ])
 
-    ### -----------------------------------------------
-    ### dlls_locs / location-preservation lemmas (toward G3 in roadmap)
+    ### dlls_locs / location-preservation lemmas
     ###
     ### insertNAt / insertDPrList rewrite only bucket contents (the lsts field of
     ### each dlst node), never bucket locations (the lh field). The lemmas below
@@ -302,7 +297,6 @@ module DL_L_S {
                 = (dlls_locs dlls)                                            [inner_eq]
             ])
 
-    ### -----------------------------------------------
     ### in
     ### Purpose:
     ###     Replication aware membership predicate for distributed bucket lists.
@@ -516,8 +510,7 @@ module DL_L_S {
                     (!from-false (in bucket rv (initDPrList f htl lsts) (initDPrList f htl lsts) v)))
             )
 
-    ### -----------------------------------------------
-    ### G1: in_after_insert_self (full proof, factored through helpers)
+    ### in_after_insert_self (full proof, factored through helpers)
     ###
     ### After insertDPrList at bucket=0 with any rv into a non-empty dlls, the
     ### value v is `in` the result at bucket 0. The proof is factored into
@@ -531,11 +524,11 @@ module DL_L_S {
     ###                                    only ever prepends more v's at the
     ###                                    head), so the previous lemma still
     ###                                    applies to its output.
-    ### G1 at bucket=0 then follows by unfolding insertDPrList into a chain
+    ### The bucket=0 case then follows by unfolding insertDPrList into a chain
     ### through insertNAt and applying the second helper at w = countWraps...
     ###
-    ### Full G1 over arbitrary bucket would proceed by induction on bucket
-    ### (mirroring in_init_false_aux's pattern), but the inductive step
+    ### The general case (arbitrary bucket) would proceed by induction on
+    ### bucket (mirroring in_init_false_aux's pattern), but the inductive step
     ### requires a more general statement than the base case provides — the
     ### "tail of mod_dlls" differs from `insertDPrList bucket' rv v tail` by
     ### exactly one wrap-prepend at position 0 whenever the wrap count is
@@ -625,7 +618,7 @@ module DL_L_S {
                 ])
     }
 
-    # G1 (bucket=0): after insertDPrList at bucket 0 with any rv into a
+    # Bucket=0 case: after insertDPrList at bucket 0 with any rv into a
     # non-empty dlls, `in zero rv` finds v at bucket 0.
     define in_after_insert_self_bucket_zero :=
         (forall rv lh lsts tail_dlls v .
@@ -664,8 +657,7 @@ module DL_L_S {
                 <== true [helper]
             ])
 
-    ### -----------------------------------------------
-    ### Full G1 (general bucket): status and proof obligation
+    ### in_after_insert_self, general bucket: status and proof obligation
     ###
     ### The natural statement is:
     ###
@@ -700,14 +692,13 @@ module DL_L_S {
     ###     precondition, which is exactly the recursive obligation discussed
     ###     above.
 
-    ### -----------------------------------------------
-    ### G2: in_after_insert_other (TODO — asserted, not yet proved)
+    ### in_after_insert_other (TODO — asserted, not yet proved)
     ###
     ### When v ≠ v0, inserting v0 into dlls leaves the result of `in` for v
     ### unchanged. Stated for the diagonal `o_dlls = dlls` case, which is
     ### the form `query_aux` exercises (cf. dhtable_mateo.ath:148-153).
     ###
-    ### Proof sketch (deferred — fixes.txt item 4): structural induction on
+    ### Proof sketch (deferred): structural induction on
     ### dlls with an inner case-split on whether the query's `bucket0` falls
     ### inside the insert's rv+1-window starting at `bucket` (with wrap).
     ###   * Inside the window: insertDPrList prepends v0 to the bucket;
@@ -727,7 +718,6 @@ module DL_L_S {
     assert in_after_insert_other
 
 
-    ### ---------------------------------------------------------------
     ### available_key
     ### Purpose:
     ###     Determine whether the bucket at index `bucket`, or any of its next `rv` 
@@ -746,25 +736,33 @@ module DL_L_S {
     declare available_key: (S) [N N (DLst (Lst S)) (DLst (Lst S))] -> Boolean
     assert available_key_axioms := (fun [
         (available_key bucket rv dlls (dempty htl)) <==> false
-        (available_key zero zero (dempty htl) o_dlls)  <==> false
         (available_key zero zero (dlst lh lsts tail_dlls) o_dlls) <==> (Location.alive lh)
         (available_key zero (S rv) (dlst lh lsts tail_dlls) o_dlls) <==>
             [
-                true 
+                true
                     when (Location.alive lh)
-                (available_key zero rv tail_dlls o_dlls) 
+                (available_key zero rv tail_dlls o_dlls)
                     when (~ Location.alive lh)
             ]
-        (available_key zero (S rv) (dempty htl) o_dlls) <==>
-            (available_key zero (S rv) o_dlls o_dlls)
         (available_key (S bucket) rv (dlst lh lsts tail_dlls) o_dlls) <==>
             (available_key bucket rv tail_dlls o_dlls)
-        (available_key (S bucket) rv (dempty htl) o_dlls) <==>
+        # Wrap-around (merged rule). When the current suffix `dlls`
+        # runs out but the original list `o_dlls` is non-empty, restart the walk at
+        # the head of `o_dlls` WITHOUT decrementing `bucket`/`rv`. This single rule
+        # replaces the three former empty-`dlls` clauses, fixing two defects:
+        #   (i) the old `(zero zero (dempty htl) o_dlls) <==> false` clause returned
+        #       false instead of wrapping (reachable when the home bucket is the last
+        #       one and rv exhausts exactly at the end), and
+        #   (ii) the old `(S bucket) rv (dempty htl) o_dlls` clause decremented
+        #       `bucket` on wrap, making bucket indices behave modulo (#buckets + 1).
+        # Termination is preserved by the first clause above: when `o_dlls` itself is
+        # empty the guard fires (first match) and returns false, so the wrap cannot
+        # loop forever.
+        (available_key bucket rv (dempty htl) o_dlls) <==>
             (available_key bucket rv o_dlls o_dlls)
     ])
 
-    ### -----------------------------------------------
-    ### G3: available_key invariance under insertion
+    ### available_key invariance under insertion
     ###
     ### available_key only inspects head-locations (lh) and the dempty/dlst
     ### shape of its dlls inputs (cf. available_key_axioms above — lsts never
@@ -775,7 +773,7 @@ module DL_L_S {
     ###
     ### We factor the result through an intermediate lemma stating that
     ### available_key depends on its dlls / o_dlls arguments only through
-    ### their dlls_locs. The G3 corollary is then a one-step instantiation.
+    ### their dlls_locs. The corollary below is then a one-step instantiation.
     ###
     ### The intermediate is asserted for now (see TODO). The full proof is a
     ### structural induction on dlls1 (with parallel structure derived for dlls2
@@ -796,7 +794,7 @@ module DL_L_S {
                     (available_key B R dlls2 o_dlls2))
     assert available_key_dlls_locs_inv
 
-    # G3 corollary: available_key is invariant under insertDPrList when both
+    # Corollary: available_key is invariant under insertDPrList when both
     # arguments are taken to be the same modified dlls (which is exactly the
     # shape that query_aux uses: `available_key (hf at v) rv dlls dlls`).
     define available_key_insert_invariant :=
@@ -828,7 +826,6 @@ module DL_L_S {
             (!uspec* step_o [B R])
 
 
-    ### ---------------------------------------------------------------
     ### no_consecutive_failures (replication invariant for the abstract)
     ###
     ### Captures the fault-tolerance hypothesis stated in the paper's
@@ -863,7 +860,6 @@ module DL_L_S {
     ])
 
 
-    ### ---------------------------------------------------------------
     ### values
     ### Purpose:
     ###     Compute the set of all available values contained in a  distributed list of
@@ -894,37 +890,132 @@ module DL_L_S {
         ]
     ])
 
-    ### -----------------------------------------------
-    ### Values analogue of (G1) / (G2) (TODO — asserted, not yet proved)
+    ### values totality under the `true` flag (PROVEN)
+    ###
+    ### The public DHT-level `values` always calls `DL_L_S.values` with the
+    ### boolean flag set to `true` (see values_aux_axioms in dhtable_mateo.ath).
+    ### The three lemmas below establish, by structural induction, that under a
+    ### `true` flag `values` never returns NONE, and in particular an *empty*
+    ### distributed list of buckets returns `SOME` of the accumulator unchanged.
+    ### This is the sound core of the Option semantics: NONE is the list-level
+    ### sentinel for the `false`-flag empty case only, and is never surfaced
+    ### through the public boundary, so an empty (indeed any) DHT is
+    ### `available` AND returns `SOME` — the two are consistent.
+
+    # The empty bucket list returns the accumulator unchanged, under `true`.
+    define values_empty_some :=
+        (forall sets htl . (values (dempty htl) sets true) = (SOME sets))
+    datatype-cases values_empty_some {
+        (sets as Set.null) =>
+            pick-any htl:Location
+                (!chain [ (values (dempty htl) Set.null true)
+                        = (SOME Set.null)                          [values_axioms] ])
+      | (sets as (Set.insert x:'S rest:(Set.Set 'S))) =>
+            pick-any htl:Location
+                (!chain [ (values (dempty htl) (Set.insert x rest) true)
+                        = (SOME (Set.insert x rest))               [values_axioms] ])
+    }
+
+    # Under the `true` flag, `values` is total (never NONE) for any bucket
+    # list and any accumulator.
+    define values_true_some :=
+        (forall dlls sets . exists s . (values dlls sets true) = (SOME s))
+    by-induction values_true_some {
+        (dlls as (dempty htl:Location)) =>
+            pick-any sets:(Set.Set 'S)
+                let { base := (!uspec* values_empty_some [sets htl]) }
+                (!egen (exists s . (values (dempty htl) sets true) = (SOME s)) sets)
+      | (dlls as (dlst lh lsts tail_dlls)) =>
+            let { ih := (forall sets . exists s . (values tail_dlls sets true) = (SOME s)) }
+            pick-any sets:(Set.Set 'S)
+                (!two-cases
+                    assume alv := (Location.alive lh)
+                        let {
+                            inst := (!uspec ih (\/ (l2s lsts) sets)) }
+                        pick-witness s0 for inst inst_body
+                            let {
+                                eqn := (!chain
+                                    [ (values (dlst lh lsts tail_dlls) sets true)
+                                    = (values tail_dlls (\/ (l2s lsts) sets) true) [values_axioms alv]
+                                    = (SOME s0)                                     [inst_body] ]) }
+                            (!egen (exists s . (values (dlst lh lsts tail_dlls) sets true) = (SOME s))
+                                   s0)
+                    assume nalv := (~ Location.alive lh)
+                        let {
+                            inst := (!uspec ih sets) }
+                        pick-witness s0 for inst inst_body
+                            let {
+                                eqn := (!chain
+                                    [ (values (dlst lh lsts tail_dlls) sets true)
+                                    = (values tail_dlls sets true)                 [values_axioms nalv]
+                                    = (SOME s0)                                     [inst_body] ]) }
+                            (!egen (exists s . (values (dlst lh lsts tail_dlls) sets true) = (SOME s))
+                                   s0))
+    }
+
+    # A freshly-initialised bucket list (all buckets empty) returns the
+    # accumulator unchanged, under `true`. With accumulator Set.null this gives
+    # `values (initDPrList ..) Set.null true = SOME Set.null`, the empty-DHT case
+    # of values_functional_correctness. The accumulator never grows because every
+    # bucket contributes `l2s empty = Set.null`, absorbed by `Set.null \/ sets = sets`.
+    define values_init_some :=
+        (forall ll f htl sets . (values (initDPrList f htl ll) sets true) = (SOME sets))
+    by-induction values_init_some {
+        (ll as empty) =>
+            pick-any f:(fn 'S N) htl:Location sets:(Set.Set 'S)
+                let { base := (!uspec* values_empty_some [sets htl]) }
+                (!chain [ (values (initDPrList f htl empty) sets true)
+                        = (values (dempty htl) sets true)          [initDPrList_axioms]
+                        = (SOME sets)                              [base] ])
+      | (ll as (lst l tail_l)) =>
+            let { ih := (forall f htl sets . (values (initDPrList f htl tail_l) sets true) = (SOME sets)) }
+            pick-any f:(fn 'S N) htl:Location sets:(Set.Set 'S)
+                let { ihi := (!uspec* ih [f htl sets]) }
+                (!two-cases
+                    assume alv := (Location.alive l)
+                        (!chain
+                            [ (values (initDPrList f htl (lst l tail_l)) sets true)
+                            = (values (dlst l empty (initDPrList f htl tail_l)) sets true)  [initDPrList_axioms]
+                            = (values (initDPrList f htl tail_l) (\/ (l2s empty) sets) true) [values_axioms alv]
+                            = (values (initDPrList f htl tail_l) (\/ Set.null sets) true)     [Lst.toSet.toSet-empty-axiom]
+                            = (values (initDPrList f htl tail_l) sets true)                   [Set.union-def]
+                            = (SOME sets)                                                      [ihi] ])
+                    assume nalv := (~ Location.alive l)
+                        (!chain
+                            [ (values (initDPrList f htl (lst l tail_l)) sets true)
+                            = (values (dlst l empty (initDPrList f htl tail_l)) sets true)  [initDPrList_axioms]
+                            = (values (initDPrList f htl tail_l) sets true)                 [values_axioms nalv]
+                            = (SOME sets)                                                    [ihi] ]))
+    }
+
+    ### Values analogue of in_after_insert_self / in_after_insert_other
     ###
     ### Inserting v0 into dlls extends the value-set returned by `values` by
     ### Set.insert v0, provided that at least one bucket in the insert's
     ### rv+1-window is alive (i.e. when available_key holds on the window),
     ### so v0 actually lands in an alive bucket and gets unioned into the
-    ### accumulator. This is the lemma that drives the insert-side of
-    ### values_functional_correctness in dhtable_mateo.ath: combined with
-    ### available_key_insert_invariant (G3), it bridges
-    ###     `values (rep (dht_insert dht v0))`
-    ### with
-    ###     `Set.insert v0 (values (rep dht))`
-    ### under `available dht`.
+    ### accumulator. This is the last remaining obligation on the insert side of
+    ### values_functional_correctness (dhtable_mateo.ath); with it, and the three
+    ### PROVEN totality lemmas above, that theorem is now a real datatype-cases
+    ### proof whose only residual assumption is this single lemma.
     ###
-    ### Proof sketch (deferred — fixes.txt item 5): structural induction on
-    ### dlls, threading the accumulator `sets` and the boolean flag `b`
-    ### through the recursion. Inside the insert's window an alive bucket
-    ### contributes `(l2s (lst v0 lsts)) = Set.insert v0 (l2s lsts)`; the
-    ### set union absorbs the extra v0 element. Outside the window the
-    ### bucket is untouched and the recursive call propagates the invariant.
-    ### Likely needs a strengthened helper that abstracts over the (sets, b)
-    ### pair, analogous to the dlls/o_dlls strengthening used in
-    ### in_init_false.
-    # TODO: discharge by structural induction on dlls with a strengthened
-    # helper that abstracts over the accumulator and boolean-flag arguments.
+    ### Stated at the `true` flag to match the public `values` boundary (the
+    ### former `false`-flag statement did not compose with values_aux_axioms).
+    ### The premise `(values dlls Set.null true) = (SOME s0)` merely names the
+    ### pre-insert value set (it always holds, by values_true_some).
+    ###
+    ### Proof sketch (deferred): structural induction on dlls, threading the
+    ### accumulator through the recursion; inside the insert's window an alive
+    ### bucket contributes `(l2s (lst v0 lsts)) = Set.insert v0 (l2s lsts)` and the
+    ### union absorbs the extra element, while outside the window buckets are
+    ### untouched. Needs a strengthened helper abstracting over the accumulator,
+    ### analogous to the strengthening used in in_init_false.
+    # TODO: discharge by structural induction on dlls with a strengthened helper.
     define values_after_insert :=
         (forall bucket rv v0 dlls s0 .
             (((available_key bucket rv dlls dlls) &
-              ((values dlls Set.null false) = (SOME s0))) ==>
-             ((values (insertDPrList bucket rv v0 dlls) Set.null false) = (SOME (Set.insert v0 s0)))))
+              ((values dlls Set.null true) = (SOME s0))) ==>
+             ((values (insertDPrList bucket rv v0 dlls) Set.null true) = (SOME (Set.insert v0 s0)))))
     assert values_after_insert
 
 }

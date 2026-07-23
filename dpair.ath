@@ -15,9 +15,13 @@ define [dpr-lFirst dpr-vFirst dpr-lSecond dpr-vSecond] := dpr-se-axioms
 define [f1 f2 s1 s2 lf1 lf2 ls1 ls2] :=
        [?f1:'S ?f2:'S ?s1:'T ?s2:'T ?lf1:Location ?lf2:Location ?ls1:Location ?ls2:Location]
 
-assert dpr-equal := (forall lf1 f1 ls1 s1 lf2 f2 ls2 s2 .
-                       ((dpr lf1 f1 ls1 s1) = (dpr lf2 f2 ls2 s2) <==> 
-                        (f1 = f2) & (s1 = s2)))
+# Note: an earlier revision asserted here an axiom (`dpr-equal`) identifying,
+# via the built-in =, any two pairs with equal values regardless of their
+# locations. Combined with the selector axioms above (lFirst and lSecond are
+# congruent with respect to =), that identification collapses all locations
+# and renders the theory inconsistent. Equality on DPr is therefore structural;
+# location-transparent comparison is expressed by the separate equivalence
+# predicates defined below (pr-equiv, dpr-equiv).
 
 define [dp1 dp2] := [?dp1:(DPr 'S 'T) ?dp2:(DPr 'S 'T)]
 
@@ -143,10 +147,18 @@ datatype-cases dpr-equiv-no-failures {
      (forall dp2 . (dp1 = dp2) & (alive-dpr dp1) & (alive-dpr dp2)
                    ==> dp1 dpr-equiv dp2) {
    (dp2 as (dpr lf2 f2:'S ls2 s2:'T)) =>	 
-     assume ((dp1 = dp2) & (alive-dpr dp1) & (alive-dpr dp2))
+     assume hyp := ((dp1 = dp2) & (alive-dpr dp1) & (alive-dpr dp2))
        let {
-	 f1=f2&s1=s2 := (!chain<- [ ((f1 = f2) & (s1 = s2))
-			       <==  (dp1 = dp2)        [dpr-equal]]);
+	 dp1=dp2 := (!chain-> [hyp ==> (dp1 = dp2) [prop-taut]]);
+	 f1=f2 := (!chain [ f1
+			= (vFirst (dpr lf1 f1 ls1 s1))     [dpr-vFirst]
+			= (vFirst (dpr lf2 f2 ls2 s2))     [dp1=dp2]
+			= f2                               [dpr-vFirst]]);
+	 s1=s2 := (!chain [ s1
+			= (vSecond (dpr lf1 f1 ls1 s1))    [dpr-vSecond]
+			= (vSecond (dpr lf2 f2 ls2 s2))    [dp1=dp2]
+			= s2                               [dpr-vSecond]]);
+	 f1=f2&s1=s2 := (!both f1=f2 s1=s2);
 	 1st := (!combine-equations
 		  (!chain<-
 		    [  ((getFirst (dpr lf1 f1 ls1 s1))

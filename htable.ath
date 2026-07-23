@@ -42,7 +42,7 @@ module HTable {
 		<==> ((f = f') & (e = e') & (o = o'))          [pr-no-conf]])
 
 
-	#---ht-rep
+	# ht-rep
 
 	declare rep : (S) [(HTable S)] -> (HTRep S)	       
 
@@ -100,7 +100,7 @@ module HTable {
 		(!m (f' at v = zero)    (lst v e')  o')
 		(!m (~ f' at v = zero)  e'          (lst v o')))}
 
-	#---rep-inv
+	# rep-inv
 
 	declare rep-inv : (S) [(HTRep S)] -> Boolean
 	
@@ -214,7 +214,7 @@ module HTable {
 	# 						when (~ f at v = zero)]])
 
 
-	#---query
+	# query
 
 	declare query : (S) [(HTable S) S] -> Boolean
 
@@ -354,7 +354,7 @@ module HTable {
 				((query t v) <==> ((v = v') | (query t' v))))) [t0 v0]))}
 
 		
-	#---values
+	# values
 
 	declare values : (S) [(HTable S)] -> (Set.Set S)
 
@@ -514,7 +514,7 @@ module HTable {
 						<== rep-t                 [values-axiom]]])
 
 
-	#---ht-hf
+	# ht-hf
 
 	declare hf : (S) [(HTable S)] -> (fn S N)
 
@@ -684,7 +684,7 @@ module HTable {
 
 
 
-	#---equal
+	# equal
 	#
 	# When are two hashtables equal?
 
@@ -732,7 +732,7 @@ module HTable {
 	# representation that includes a hf.
 
 
-	#---ht-equiv
+	# ht-equiv
 	#
 	# When are two hashtables equivalent?
 

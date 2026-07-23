@@ -22,7 +22,7 @@ module DHTable {
 	((dhtr f (dpr le e lo o)) = (dhtr f' (dpr le' e' lo' o')) <==>
 	((f = f') & (le = le') & (e = e') & (lo = lo') & (o = o')))
 		
-	#---dht-rep
+	# dht-rep
 
 	declare rep : (S) [(DHTable S)] -> (DHTRep S)	       
 
@@ -126,10 +126,10 @@ module DHTable {
 		(!egen* (exists e0 o0 . (rep dt = (dhtr f (dpr le e0 lo o0))))
 			[e' o'])
 
-	#---rep-inv
+	# rep-inv
 
 			
-	#---dht-query
+	# dht-query
 
 	declare query : (S) [(DHTable S) S] -> (Option Boolean)
 
@@ -152,7 +152,7 @@ module DHTable {
 		(~ f at v = zero) & (~ alive lo))]])
 
 
-	#---dht-values
+	# dht-values
 
 	declare values : (S) [(DHTable S)] -> (Option (Set.Set S))
 
@@ -172,7 +172,7 @@ module DHTable {
 					(~ alive le) & (~ alive lo))]])
 
 
-	#---dht-hf
+	# dht-hf
 
 	declare hf : (S) [(DHTable S)] -> (fn S N)
 
@@ -192,7 +192,7 @@ module DHTable {
 	# OR modeled optional as (Option (fn S N))
 
 
-	#---equal
+	# equal
 	#
 	# When are two distributed hashtables equal?
 
@@ -219,7 +219,7 @@ module DHTable {
 	declare equal: (S) [(HTable S) (DHTable S)] -> Boolean
 	#cvarela: how to make the arguments interchangeable?
 
-	#---ht-dht-equal
+	# ht-dht-equal
 
 	define [de do] := [?de:(Lst 'S) ?do:(Lst 'S)]
 
@@ -240,7 +240,7 @@ module DHTable {
 	# distributed hashtable {\tt dt}, then {\tt dt} must be {\tt
 	# (dht-empty lp f)} for some location pair {\tt lp}.
 
-	#---dht-canonical
+	# dht-canonical
 
 	#
 	# every distributed hashtable has a "canonical" non-distributed
@@ -341,7 +341,7 @@ module DHTable {
 	(!force equal-preserves-canonical)
 
 
-	#---dht-ht-equiv
+	# dht-ht-equiv
 
 	# when are a hashtable and a distributed hashtable behaviorally
 	# equivalent (i.e., observationally undistinguishable)
@@ -386,7 +386,7 @@ module DHTable {
 
 	# exercise: hashtable equivalent to local distributed hashtable
 
-	#---dht-alive
+	# dht-alive
 
 	# we lift 'alive' predicate to distributed hashtables:
 	declare alive: (S) [(DHTable S)] -> Boolean
@@ -482,7 +482,7 @@ module DHTable {
 		==> (((canonical dt) equal dt) & (alive dt)) [canonical-equal]
 		==> ((canonical dt) ht-equiv dt)             [ht-dht-no-failures]])
 
-	#---dht-equiv
+	# dht-equiv
 
 	# when are two distributed hashtables behaviorally equivalent
 	declare dht-equiv: (S) [(DHTable S) (DHTable S)] -> Boolean

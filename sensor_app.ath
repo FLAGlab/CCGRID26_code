@@ -1,4 +1,4 @@
-### --- sensor_app.ath ---
+### sensor_app.ath
 ###
 ### This file does NOT add new theorems to the library. It instantiates the
 ### three already-proven library modules (DFunction, DHTable, CRDT) at
@@ -6,7 +6,7 @@
 ### guarantees claimed by composition in the paper. Each `conclude` below is
 ### a direct instantiation of a sentence already on the assumption base of an
 ### upstream module; the final lemma chains two of them together to obtain
-### the cross-module composition guarantee that motivates §IV.
+### the cross-module composition guarantee that motivates Section IV.
 
 # Load order matters: `crdt.ath` proves a lemma that pattern-matches on a
 # list head named `h`; if `function.ath` has been loaded first, its
@@ -19,14 +19,14 @@ load "dhtable_mateo"
 load "dfunction"
 
 
-########################## SIV-A: Sensor-app sorts ###########################
+# SIV-A: Sensor-app sorts
 
 domain SensorID
 domain SensorType
 domain Temperature
 
 
-############### SIV-A: Concrete data-type witnesses ###############
+# SIV-A: Concrete data-type witnesses
 
 # DHT of sensor metadata. r = 1 ==> `available_key` collapses to
 # "home bucket alive OR its successor alive", the smallest non-trivial
@@ -45,7 +45,7 @@ define  telemetryNode :=
     (node zero telemetryState telemetryMailbox telemetryLoc)
 
 
-################ SIV-B: Service kernel signatures ################
+# SIV-B: Service kernel signatures
 
 # Service 1: average temperature over the telemetry set.
 declare avgTemp :
@@ -71,13 +71,13 @@ declare avgPerType :
         Temperature)
 
 
-############# SIV-B: Replica locations #############
+# SIV-B: Replica locations
 
 declare avgL0, avgL1, cntL0, cntL1 : Location
 declare grpL0, grpL1, aptL0, aptL1 : Location
 
 
-############# SIV-B: functionReplica instances #############
+# SIV-B: functionReplica instances
 
 define avgTempSvc     := (DFunction.functionReplica avgTemp     avgL0 avgL1)
 define typeCountSvc   := (DFunction.functionReplica typeCount   cntL0 cntL1)
@@ -89,7 +89,7 @@ define avgByTypeSvc :=
     (DFunction.replicaComposition groupByTypeSvc avgPerTypeSvc)
 
 
-############# SIV-B: Service-level guarantees (derived) #############
+# SIV-B: Service-level guarantees (derived)
 
 # Telemetry convergence -- direct instance of CRDT.eventual_consistency at
 # the (Pr SensorID Temperature) carrier.
@@ -164,7 +164,7 @@ conclude avgByType_fault_tolerance
            hyp)
 
 
-# The real value of §IV: combining eventual_consistency on the telemetry
+# The real value of Section IV: combining eventual_consistency on the telemetry
 # stream with fault_tolerance_correctness on the avgTemp service gives a
 # service-level convergence guarantee. Two correct telemetry replicas that
 # have delivered the same set of `add` messages, fed into an alive avgTemp

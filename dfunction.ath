@@ -6,7 +6,7 @@ define lAlive := Location.alive
 module DFunction {
     open Function
     assert (theory-axioms Function.theory)
-    ############################## Declarations
+    # Declarations
     declare alive: (D,R) [(DPr (fn D R) (fn D R))] -> Boolean
 
     declare apply: (D,R) [(DPr (fn D R) (fn D R)) D] -> (Option R) 
@@ -17,7 +17,7 @@ module DFunction {
     declare replicaComposition: (A, B, C) [(DPr (fn A B) (fn A B)) (DPr (fn B C) (fn B C))] 
                                           -> (DPr (fn A C) (fn A C))
 
-    ############################## Definitions
+    # Definitions
 
     define [f g x l1 l0 lg lg0 lg1 lf0 lf1] := 
            [?f:(fn 'D 'R) ?g:(fn 'R 'O) ?x:'D ?l1:Location ?l0:Location
@@ -27,7 +27,7 @@ module DFunction {
             (replicaComposition (functionReplica f lf0 lf1) (functionReplica g lg0 lg1))
             # g(f(x))
 
-    ############################## Asserts
+    # Asserts
 
     assert* alive_axiom := (iff (alive (dpr l1 f l0 f)) ((lAlive l1) or (lAlive l0)))
 
@@ -53,7 +53,7 @@ module DFunction {
     ])
 
 
-    ############################## Theorem Definitions 
+    # Theorem Definitions
 
     define fault_tolerance_correctness :=
     (forall x f l1 l0 .
@@ -72,7 +72,7 @@ module DFunction {
         )
     )
 
-    ############################## Theorem Proofs 
+    # Theorem Proofs
 
     conclude fault_tolerance_correctness
         pick-any x:'D f:(fn 'D 'R) l1:Location l0:Location

@@ -134,7 +134,6 @@ module CRDT {
                 = (apply (msg add c) state)                        [apply_add_axiom]
             ])
 
-    # ------------------------------------------------------------------
     # addOnly: a mailbox is "addOnly" if every message it carries is in
     # add-form, i.e. has operation `add`. The grow-only-set CRDT described
     # in the paper only ever delivers `add` messages, so this is the
@@ -142,7 +141,6 @@ module CRDT {
     # message `(msg op c)` with `op =/= add`, no axiom constrains
     # `(apply (msg op c) state)`, and the convergence claim is not
     # derivable from the assumption base alone.
-    # ------------------------------------------------------------------
     define [op0] := [?op0:Operation]
 
     declare addOnly: (Content) [(Lst (Msg Content))] -> Boolean
@@ -153,7 +151,6 @@ module CRDT {
     ])
 
 
-    # ------------------------------------------------------------------
     # apply_mailbox_in_charact
     #
     # Pointwise characterization of the state produced by applying a
@@ -168,7 +165,6 @@ module CRDT {
     # `op_w = add`, so `apply m0 state` collapses to
     # `singleton c_w \/ state` via `apply_add_axiom`, and the inductive
     # hypothesis applied at that widened state finishes the chain.
-    # ------------------------------------------------------------------
     define apply_mailbox_in_charact :=
         (forall mb .
             (addOnly mb) ==>
@@ -290,7 +286,6 @@ module CRDT {
     }
 
 
-    # ------------------------------------------------------------------
     # eventual_consistency
     #
     # Strong Convergence for the Op-based grow-only-set CRDT: if two
@@ -301,7 +296,6 @@ module CRDT {
     # via set-identity-intro-direct and then closes each direction with
     # apply_mailbox_in_charact, using mailbox_equality_def to swap
     # `(l2s mailbox0)` for `(l2s mailbox1)`.
-    # ------------------------------------------------------------------
     define eventual_consistency :=
         (forall mailbox0 mailbox1 state0 state1 .
             ((addOnly mailbox0) & (addOnly mailbox1) &

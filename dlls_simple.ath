@@ -15,7 +15,6 @@ module DL_L_S {
             ?ll:(Lst Location) ?tail_l:(Lst Location) ?tail_l0:(Lst Location)]
 
     ### initDPrList
-    ### ----------------------------------------------------------------------------------
     ### Purpose:
     ###     Initialize a distributed list of buckets, one bucket per input location. Each
     ###     bucket is initialize as an empty list. You might notice that f is never use,
@@ -44,7 +43,6 @@ module DL_L_S {
                         | (exists l tail_l . (initDPrList f htl lsts) = (dlst l empty (initDPrList f htl tail_l) ))))
     
     ### in
-    ### -----------------------------------------------
     ### Purpose:
     ###     Replication aware membership predicate for distributed bucket lists.
     ###     Determines whether a value `v` is stored in the bucket indexed by `bucket`,
